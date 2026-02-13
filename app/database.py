@@ -1,24 +1,27 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base, session
+from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg2://user:password@localhost/dbname")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True
 )
 
-sessionLocal = sessionmaker(
+SessionLocal = sessionmaker(
     autocommit=False,
-    autoflush=False, 
+    autoflush=False,
     bind=engine
 )
 
-base = declarative_base()
+Base = declarative_base()
+
+
+from sqlalchemy.orm import Session
 
 def get_db():
-    db = sessionLocal()
+    db = SessionLocal()
     try:
         yield db
     finally:

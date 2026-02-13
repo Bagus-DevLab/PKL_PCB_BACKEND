@@ -33,3 +33,4 @@ paho-mqtt
 # Utilities
 # =========================
 requests
+fastapi-sso

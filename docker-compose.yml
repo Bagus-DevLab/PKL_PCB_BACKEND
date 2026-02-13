@@ -15,6 +15,12 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - iot_network
+    healthcheck:
+      # PERBAIKAN 1: Menggunakan variabel ENV agar perintah pg_isready valid
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   mosquitto:
     image: eclipse-mosquitto:2
@@ -34,9 +40,6 @@ services:
     build: .
     container_name: pcb_pkl_backend
     restart: always
-    depends_on:
-      - postgres
-      - mosquitto
     ports:
       - "8000:8000"
     env_file:
@@ -44,6 +47,12 @@ services:
     networks:
       - iot_network
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # PERBAIKAN 2 & 3: Struktur depends_on yang benar untuk mengatasi Race Condition
+    depends_on:
+      postgres:
+        condition: service_healthy  # Backend baru akan start SETELAH postgres lulus healthcheck
+      mosquitto:
+        condition: service_started
 
 volumes:
   postgres_data:

@@ -1,9 +1,16 @@
 from fastapi import Depends, FastAPI
 from sqlalchemy.orm import Session
-from app.database import get_db
 from sqlalchemy import text
+from app.routers import auth
+from app.database import  Base, engine, get_db
+from app.models import user  # import semua model supaya ter-register
 
 app = FastAPI()
+app.include_router(auth.router)
+
+@app.on_event("startup")
+def on_startup():
+    Base.metadata.create_all(bind=engine)
 
 @app.get("/")
 def health_check(db: Session = Depends(get_db)):
