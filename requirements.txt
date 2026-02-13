@@ -1,0 +1,35 @@
+# =========================
+# FastAPI Core
+# =========================
+fastapi
+uvicorn[standard]
+
+# =========================
+# Database
+# =========================
+SQLAlchemy>=2.0
+psycopg2-binary
+alembic
+
+# =========================
+# Validation
+# =========================
+pydantic
+python-dotenv
+
+# =========================
+# Authentication
+# =========================
+python-jose[cryptography]
+passlib[bcrypt]
+authlib
+
+# =========================
+# MQTT
+# =========================
+paho-mqtt
+
+# =========================
+# Utilities
+# =========================
+requests
