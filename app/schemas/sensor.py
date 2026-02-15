@@ -8,8 +8,10 @@ class LogResponse(BaseModel):
     temperature: float
     humidity: float
     ammonia: float
+    is_alert: bool # Tambahkan ini
+    alert_message: Optional[str] # Tambahkan ini
     timestamp: datetime
-
+    
     class Config:
         from_attributes = True
 

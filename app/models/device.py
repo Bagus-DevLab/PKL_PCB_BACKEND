@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Float, ForeignKey, DateTime, Integer
+from sqlalchemy import Boolean, Column, String, Float, ForeignKey, DateTime, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -35,5 +35,8 @@ class SensorLog(Base):
     humidity = Column(Float)
     ammonia = Column(Float)
 
+    is_alert = Column(Boolean, default=False) # True kalau suhu/amonia kacau
+    alert_message = Column(String, nullable=True) # Pesan bahayanya ap
+    
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
     device = relationship("Device", back_populates="logs")

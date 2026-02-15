@@ -8,6 +8,12 @@ from app.models.device import Device, SensorLog
 from app.schemas import DeviceClaim, DeviceResponse, LogResponse
 from app.dependencies import get_current_user
 
+import json
+import paho.mqtt.client as mqtt
+from app.core.config import settings
+from app.schemas.device import DeviceControl
+
+
 router = APIRouter(
     prefix="/devices",
     tags=["Devices"]
@@ -74,3 +80,47 @@ def read_device_logs(
         .order_by(SensorLog.timestamp.desc())\
         .limit(limit)\
         .all()
+
+@router.post("/{device_id}/control")
+def control_device(
+    device_id: str,
+    command: DeviceControl, # Pake schema yang baru kita buat
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # 1. Cek Kepemilikan (SECURITY CHECK)
+    # Jangan sampe orang lain iseng matiin kipas lo!
+    device = db.query(Device).filter(Device.id == device_id, Device.user_id == current_user.id).first()
+    
+    if not device:
+        raise HTTPException(status_code=404, detail="Device tidak ditemukan atau akses ditolak")
+
+    # 2. Siapkan Payload MQTT
+    # Kita kirim JSON biar alat gampang bacanya
+    mqtt_payload = {
+        "component": command.component,
+        "state": "ON" if command.state else "OFF"
+    }
+    
+    # Topic tujuan: devices/{MAC_ADDRESS}/control
+    # Ini standar komunikasi 2 arah yang rapi
+    mqtt_topic = f"devices/{device.mac_address}/control"
+
+    # 3. Eksekusi Publish ke MQTT Broker
+    try:
+        # Bikin client MQTT dadakan
+        client = mqtt.Client()
+        
+        # Connect ke Broker (mosquitto)
+        client.connect(settings.MQTT_BROKER, settings.MQTT_PORT, 60)
+        
+        # Kirim Pesan!
+        client.publish(mqtt_topic, json.dumps(mqtt_payload))
+        
+        # Putus koneksi (biar hemat resource)
+        client.disconnect()
+        
+        return {"status": "success", "message": f"Perintah {command.component} dikirim ke {device.name}"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gagal mengirim perintah MQTT: {str(e)}")

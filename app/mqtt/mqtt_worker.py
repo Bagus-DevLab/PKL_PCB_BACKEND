@@ -24,42 +24,53 @@ def on_connect(client, userdata, flags, rc):
     client.subscribe(MQTT_TOPIC)
     print(f"📡 Sedang mendengarkan topic: {MQTT_TOPIC}")
 
-# Callback saat ada pesan masuk (DAGINGNYA DISINI)
 def on_message(client, userdata, msg):
-    print(f"📩 Pesan masuk di topic: {msg.topic}")
-    
     db = SessionLocal()
     try:
-        # 1. Parsing Topic buat dapet MAC Address
-        # Format topic: devices/{mac_address}/data
-        topic_parts = msg.topic.split("/")
-        mac_address = topic_parts[1]
-        
-        # 2. Parsing Data JSON dari ESP32
+        mac_address = msg.topic.split("/")[1]
         payload = json.loads(msg.payload.decode())
-        print(f"   Data: {payload}")
         
-        # 3. Cari Device di Database
         device = db.query(Device).filter(Device.mac_address == mac_address).first()
         
-        if not device:
-            print(f"⚠️ Device dengan MAC {mac_address} tidak ditemukan di database. Data diabaikan.")
-            return
+        if device:
+            temp = payload.get("temp", 0)
+            ammonia = payload.get("ammonia", 0)
+            
+            # --- LOGIKA ALERT (AMBANG BATAS) ---
+            is_alert = False
+            alert_msg = ""
 
-        # 4. Simpan ke Sensor Log (Big Data Ingestion)
-        new_log = SensorLog(
-            device_id=device.id,
-            temperature=payload.get("temp", 0.0),
-            humidity=payload.get("humid", 0.0),
-            ammonia=payload.get("ammonia", 0.0)
-        )
-        
-        db.add(new_log)
-        db.commit()
-        print(f"💾 Data tersimpan untuk Device: {device.name}")
+            if temp > 35:
+                is_alert = True
+                alert_msg += "Suhu Terlalu Panas! "
+            elif temp < 20:
+                is_alert = True
+                alert_msg += "Suhu Terlalu Dingin! "
+
+            if ammonia > 20:
+                is_alert = True
+                alert_msg += "Kadar Amonia Berbahaya! "
+
+            # Simpan ke Database
+            new_log = SensorLog(
+                device_id=device.id,
+                temperature=temp,
+                humidity=payload.get("humid", 0),
+                ammonia=ammonia,
+                is_alert=is_alert,
+                alert_message=alert_msg if is_alert else None
+            )
+            
+            db.add(new_log)
+            db.commit()
+
+            if is_alert:
+                print(f"🚨 ALERT untuk {device.name}: {alert_msg}")
+            else:
+                print(f"✅ Data normal untuk {device.name}")
 
     except Exception as e:
-        print(f"❌ Error memproses data: {e}")
+        print(f"❌ Error Worker: {e}")
     finally:
         db.close()
 

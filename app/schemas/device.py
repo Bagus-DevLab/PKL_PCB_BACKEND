@@ -23,3 +23,13 @@ class DeviceResponse(BaseModel):
 class DeviceUpdate(BaseModel):
     """Schema untuk update data device"""
     name: Optional[str] = None
+
+
+class DeviceControl(BaseModel):
+    # Komponen apa yang mau dikontrol?
+    # Contoh: "lampu_utama", "kipas_angin", "pompa_air", "pakan_otomatis"
+    component: str 
+    
+    # Mau diapain?
+    # True = NYALA (ON), False = MATI (OFF)
+    state: bool
