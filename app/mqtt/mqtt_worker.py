@@ -1,15 +1,14 @@
-import os
 import json
 import paho.mqtt.client as mqtt
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models.device import Device, SensorLog
+from app.core.config import settings
 
-# Konfigurasi MQTT
-# Ingat: Di dalam Docker network, hostnamenya adalah nama service ("mosquitto" atau "pcb_pkl_mosquitto")
-MQTT_BROKER = "mosquitto" 
-MQTT_PORT = 1883
-MQTT_TOPIC = "devices/+/data" # Tanda '+' itu Wildcard. Artinya kita dengerin SEMUA device.
+# Konfigurasi MQTT dari settings
+MQTT_BROKER = settings.MQTT_BROKER
+MQTT_PORT = settings.MQTT_PORT
+MQTT_TOPIC = settings.MQTT_TOPIC
 
 def get_db():
     db = SessionLocal()

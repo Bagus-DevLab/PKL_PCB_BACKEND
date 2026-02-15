@@ -15,6 +15,7 @@ alembic
 # Validation
 # =========================
 pydantic
+pydantic-settings
 python-dotenv
 
 # =========================

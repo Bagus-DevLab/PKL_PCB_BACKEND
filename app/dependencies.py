@@ -1,9 +1,9 @@
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials # <--- Ganti Import ini
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
-from app.utils.security import verify_token
+from app.core.security import verify_token
 
 # 1. Ganti Scheme jadi HTTPBearer
 # Ini bikin Swagger UI cuma nampilin kotak isian token doang (Simple)

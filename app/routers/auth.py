@@ -1,28 +1,23 @@
-import os
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi_sso.sso.google import GoogleSSO
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
-from app.utils.security import create_access_token
+from app.core import settings, create_access_token
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
-# --- KONFIGURASI ENV ---
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-BASE_URL = os.getenv("BASE_URL", "http://localhost:8000").rstrip("/")
-
-if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+# --- KONFIGURASI ---
+if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
     raise RuntimeError("FATAL: GOOGLE_CLIENT_ID atau GOOGLE_CLIENT_SECRET belum di-set di .env!")
 
 CALLBACK_PATH = "/auth/google/callback"
-REDIRECT_URI = f"{BASE_URL}{CALLBACK_PATH}"
+REDIRECT_URI = f"{settings.BASE_URL.rstrip('/')}{CALLBACK_PATH}"
 
 # Setup SSO
 sso = GoogleSSO(
-    client_id=GOOGLE_CLIENT_ID,
-    client_secret=GOOGLE_CLIENT_SECRET,
+    client_id=settings.GOOGLE_CLIENT_ID,
+    client_secret=settings.GOOGLE_CLIENT_SECRET,
     redirect_uri=REDIRECT_URI,
     allow_insecure_http=True 
 )
