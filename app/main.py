@@ -12,7 +12,7 @@ app = FastAPI()
 app.include_router(auth.router)
 app.include_router(user_router.router)
 app.include_router(device_router.router)
-
+    
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)

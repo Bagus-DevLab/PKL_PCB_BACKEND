@@ -16,7 +16,6 @@ services:
     networks:
       - iot_network
     healthcheck:
-      # PERBAIKAN 1: Menggunakan variabel ENV agar perintah pg_isready valid
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
@@ -26,6 +25,7 @@ services:
     image: eclipse-mosquitto:2
     container_name: pcb_pkl_mosquitto
     restart: always
+    # HAPUS command python disini! Biarkan dia jalan sebagai broker murni.
     ports:
       - "1883:1883"
       - "9001:9001"
@@ -47,10 +47,28 @@ services:
     networks:
       - iot_network
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    # PERBAIKAN 2 & 3: Struktur depends_on yang benar untuk mengatasi Race Condition
     depends_on:
       postgres:
-        condition: service_healthy  # Backend baru akan start SETELAH postgres lulus healthcheck
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+
+  # --- TAMBAHKAN SERVICE BARU INI ---
+  mqtt_worker:
+    build: .  # Kita pakai image yang sama dengan backend (ada python & library-nya)
+    container_name: pcb_pkl_mqtt_worker
+    restart: always
+    # Pastikan path file-nya benar. Tadi kita buat di app/mqtt_worker.py
+    command: python app/mqtt/mqtt_worker.py
+    environment:
+      - PYTHONPATH=/app
+    env_file:
+      - .env
+    networks:
+      - iot_network
+    depends_on:
+      postgres:
+        condition: service_healthy
       mosquitto:
         condition: service_started
 
