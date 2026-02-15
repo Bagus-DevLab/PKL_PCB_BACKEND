@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
+from typing import Optional
 
 
 class LogResponse(BaseModel):
@@ -8,8 +9,8 @@ class LogResponse(BaseModel):
     temperature: float
     humidity: float
     ammonia: float
-    is_alert: bool # Tambahkan ini
-    alert_message: Optional[str] # Tambahkan ini
+    is_alert: bool 
+    alert_message: Optional[str] 
     timestamp: datetime
     
     class Config:

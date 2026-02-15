@@ -124,3 +124,21 @@ def control_device(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Gagal mengirim perintah MQTT: {str(e)}")
+    
+@router.get("/{device_id}/alerts", response_model=List[LogResponse])
+def get_device_alerts(
+    device_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Menampilkan daftar riwayat kondisi bahaya di kandang.
+    """
+    return db.query(SensorLog)\
+        .filter(
+            SensorLog.device_id == device_id, 
+            SensorLog.is_alert == True # Cuma ambil yang bahaya
+        )\
+        .order_by(SensorLog.timestamp.desc())\
+        .limit(10)\
+        .all()
