@@ -1,27 +1,32 @@
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials # <--- Ganti Import ini
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
 from app.utils.security import verify_token
 
-# Ini biar di Swagger UI nanti muncul tombol "Authorize" (Gembok)
-# Url 'auth/google/login' cuma dummy biar swagger gak error
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/google/login")
+# 1. Ganti Scheme jadi HTTPBearer
+# Ini bikin Swagger UI cuma nampilin kotak isian token doang (Simple)
+security = HTTPBearer()
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme), 
+    # 2. Ambil credentials dari HTTPBearer
+    credentials: HTTPAuthorizationCredentials = Depends(security), 
     db: Session = Depends(get_db)
 ):
     """
     Dependency ini tugasnya:
     1. Ambil token dari Header 'Authorization: Bearer ...'
-    2. Validasi token (asli/palsu/expired?)
-    3. Cari user di DB berdasarkan ID di dalam token
-    4. Kalau semua oke, return object User.
+    2. Validasi token
+    3. Return user
     """
     
-    # 1. Cek Token Valid Gak?
+    # 3. Ambil string tokennya (karena dibungkus object credentials)
+    token = credentials.credentials 
+
+    # --- SISA LOGIC DI BAWAH INI SAMA PERSIS KAYAK SEBELUMNYA ---
+    
+    # Cek Token Valid Gak?
     payload = verify_token(token)
     if payload is None:
         raise HTTPException(
@@ -30,7 +35,7 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # 2. Ambil ID User dari dalam token (sub)
+    # Ambil ID User
     user_id: str = payload.get("sub")
     if user_id is None:
         raise HTTPException(
@@ -38,7 +43,7 @@ async def get_current_user(
             detail="Token rusak (tidak ada ID user)",
         )
         
-    # 3. Cek apakah user beneran ada di DB?
+    # Cek DB
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         raise HTTPException(
