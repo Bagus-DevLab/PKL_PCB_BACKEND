@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     MQTT_BROKER: str = "mosquitto"
     MQTT_PORT: int = 1883
     MQTT_TOPIC: str = "devices/+/data"
+
+    POSTGRES_USER: str 
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
     
     class Config:
         env_file = ".env"
