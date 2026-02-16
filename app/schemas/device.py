@@ -28,8 +28,13 @@ class DeviceResponse(BaseModel):
         now = datetime.now(timezone.utc)
         
         # Hitung selisih waktu
-        # Pastikan last_heartbeat juga punya timezone info (dari DB biasanya udah ada)
-        diff = now - self.last_heartbeat
+        # Handle both timezone-aware and naive datetimes
+        last_hb = self.last_heartbeat
+        if last_hb.tzinfo is None:
+            # If naive, assume UTC
+            last_hb = last_hb.replace(tzinfo=timezone.utc)
+        
+        diff = now - last_hb
         
         # Kalau selisih kurang dari 5 menit (300 detik) -> ONLINE 🟢
         # Kalau lebih -> OFFLINE 🔴

@@ -34,6 +34,8 @@ from app.main import app
 from app.models.user import User
 from app.models.device import Device, SensorLog
 from app.core.security import create_access_token
+import app.database as database_module
+import app.main as main_module
 
 
 # Test Database Setup (SQLite in-memory with StaticPool for connection sharing)
@@ -44,6 +46,10 @@ engine = create_engine(
     connect_args={"check_same_thread": False},
     poolclass=StaticPool,  # Important: reuses same connection
 )
+
+# Patch the app's engine to use our test engine
+database_module.engine = engine
+main_module.engine = engine
 
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

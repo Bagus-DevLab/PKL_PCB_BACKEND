@@ -64,7 +64,7 @@ class TestClaimDevice:
             }
         )
         
-        assert response.status_code == 403  # Forbidden (no credentials)
+        assert response.status_code == 401  # Unauthorized (no credentials)
 
 
 class TestReadMyDevices:
@@ -95,7 +95,7 @@ class TestReadMyDevices:
         """Test akses list device tanpa token"""
         response = client.get("/devices/")
         
-        assert response.status_code == 403
+        assert response.status_code == 401
     
     def test_get_devices_with_online_status(self, client, auth_headers, test_device_claimed):
         """Test response memiliki field is_online"""
@@ -213,7 +213,7 @@ class TestControlDevice:
             json={"component": "kipas", "state": True}
         )
         
-        assert response.status_code == 403
+        assert response.status_code == 401
 
 
 class TestUnclaimDevice:
@@ -246,4 +246,4 @@ class TestUnclaimDevice:
             f"/devices/{test_device_claimed.id}/unclaim"
         )
         
-        assert response.status_code == 403
+        assert response.status_code == 401

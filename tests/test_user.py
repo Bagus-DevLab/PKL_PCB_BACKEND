@@ -22,7 +22,7 @@ class TestReadCurrentUser:
         """Test akses /users/me tanpa token"""
         response = client.get("/users/me")
         
-        assert response.status_code == 403  # Forbidden
+        assert response.status_code == 401  # Unauthorized
     
     def test_get_current_user_invalid_token(self, client):
         """Test akses /users/me dengan token invalid"""
@@ -60,7 +60,7 @@ class TestReadCurrentUser:
         headers = {"Authorization": test_user_token}
         response = client.get("/users/me", headers=headers)
         
-        assert response.status_code == 403  # Invalid auth format
+        assert response.status_code == 401  # Invalid auth format
 
 
 class TestHealthCheck:

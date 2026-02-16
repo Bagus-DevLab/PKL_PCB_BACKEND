@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
+from uuid import UUID
 
 from app.database import get_db
 from app.models.user import User
@@ -65,7 +66,7 @@ def read_my_devices(
 # 3. LIHAT DATA SENSOR (GRAFIK)
 @router.get("/{device_id}/logs", response_model=List[LogResponse])
 def read_device_logs(
-    device_id: str,
+    device_id: UUID,
     limit: int = 20, 
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -83,7 +84,7 @@ def read_device_logs(
 
 @router.post("/{device_id}/control")
 def control_device(
-    device_id: str,
+    device_id: UUID,
     command: DeviceControl, # Pake schema yang baru kita buat
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -127,7 +128,7 @@ def control_device(
     
 @router.get("/{device_id}/alerts", response_model=List[LogResponse])
 def get_device_alerts(
-    device_id: str,
+    device_id: UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -146,7 +147,7 @@ def get_device_alerts(
         
 @router.post("/{device_id}/unclaim")
 def unclaim_device(
-    device_id: str,
+    device_id: UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
