@@ -16,9 +16,7 @@ class Device(Base):
     # Nama Kandang (Bisa diubah User setelah klaim)
     name = Column(String, nullable=True)
     
-    # Pemilik Alat. 
-    # Kalau NULL = Masih punya Pabrik (Belum diklaim)
-    # Kalau Terisi = Sudah punya User
+    last_heartbeat = Column(DateTime(timezone=True), nullable=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 
     owner = relationship("User", back_populates="devices")

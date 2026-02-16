@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models.device import Device, SensorLog
 from app.core.config import settings
+from sqlalchemy.sql import  func
 
 # Konfigurasi MQTT dari settings
 MQTT_BROKER = settings.MQTT_BROKER
@@ -31,6 +32,24 @@ def on_message(client, userdata, msg):
         payload = json.loads(msg.payload.decode())
         
         device = db.query(Device).filter(Device.mac_address == mac_address).first()
+        
+        if device:
+            # 1. UPDATE DETAK JANTUNG (HEARTBEAT) ❤️
+            # Ini intinya! Kita tandain "Barusan dia online lho!"
+            device.last_heartbeat = func.now()
+
+            # 2. LOGIKA ALERT & SIMPAN LOG (Kodingan Alerting tadi tetep disini)
+            # ... (kode alert lo yang tadi copas di bawah sini) ...
+            
+            # Jangan lupa add log juga
+            # db.add(new_log) 
+
+            # 3. COMMIT SEKALIGUS
+            db.commit() # Ini bakal simpan log baru DAN update last_heartbeat device
+            print(f"✅ Data masuk & Heartbeat updated: {device.name}")
+        
+        else:
+            print(f"⚠️ Unknown MAC: {mac_address}")
         
         if device:
             temp = payload.get("temp", 0)

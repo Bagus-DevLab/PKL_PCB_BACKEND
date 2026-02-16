@@ -4,7 +4,7 @@ from sqlalchemy import text
 
 from app.database import Base, engine, get_db
 from app.routers import auth_router, user_router, device_router
-from app.models import User, Device, SensorLog  # Import models untuk auto-create tables
+from app.models import User, Device, SensorLog
 
 app = FastAPI(
     title="PKL PCB API",
