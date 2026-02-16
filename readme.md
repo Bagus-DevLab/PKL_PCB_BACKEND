@@ -91,10 +91,42 @@ docker compose up -d --build
 ### 4. ⚠️ PENTING: Seeding Data Pabrik (Initial Setup)
 Karena sistem menggunakan Whitelist, device tidak bisa daftar sendiri. Anda harus memasukkan data awal sebagai "Pabrik".
 
-Jalankan perintah ini di terminal:
+**Opsi A: Menggunakan Docker Exec (Satu per satu)**
 ```bash
-# Contoh mendaftarkan 1 alat baru dengan MAC AA:BB:CC:11:22:33
-docker exec -it pcb_pkl_postgres psql -U iot_user -d iot_db -c "INSERT INTO devices (id, mac_address, name, user_id) VALUES (gen_random_uuid(), 'AA:BB:CC:11:22:33', 'Stok Gudang A1', NULL);"
+# Mendaftarkan device dengan MAC AA:BB:CC:11:22:33
+docker exec -it pcb_pkl_postgres psql -U iot_user -d iot_db -c \
+  "INSERT INTO devices (id, mac_address, name, user_id) VALUES (gen_random_uuid(), 'AA:BB:CC:11:22:33', 'Stok Gudang A1', NULL);"
+```
+
+**Opsi B: Masuk ke PostgreSQL Shell (Bulk Insert)**
+```bash
+# Masuk ke shell PostgreSQL
+docker exec -it pcb_pkl_postgres psql -U iot_user -d iot_db
+
+# Kemudian jalankan SQL berikut:
+INSERT INTO devices (id, mac_address, name, user_id) VALUES 
+  (gen_random_uuid(), 'AA:BB:CC:11:22:33', 'Stok Gudang A1', NULL),
+  (gen_random_uuid(), 'AA:BB:CC:11:22:44', 'Stok Gudang A2', NULL),
+  (gen_random_uuid(), 'AA:BB:CC:11:22:55', 'Stok Gudang A3', NULL);
+
+# Verifikasi data
+SELECT id, mac_address, name, user_id FROM devices;
+
+# Keluar dari shell
+\q
+```
+
+**Opsi C: Menggunakan Script SQL**
+```bash
+# Buat file seed.sql
+cat > seed.sql << 'EOF'
+INSERT INTO devices (id, mac_address, name, user_id) VALUES 
+  (gen_random_uuid(), 'AA:BB:CC:11:22:33', 'Stok Gudang A1', NULL),
+  (gen_random_uuid(), 'AA:BB:CC:11:22:44', 'Stok Gudang A2', NULL);
+EOF
+
+# Jalankan script
+docker exec -i pcb_pkl_postgres psql -U iot_user -d iot_db < seed.sql
 ```
 
 ---
