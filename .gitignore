@@ -10,14 +10,13 @@ __pycache__/
 
 # Virtual Environment
 venv/
-.env/
 .venv/
+env/
 
 # ==============================
-# Environment Variables
+# Environment Variables (PENTING!)
 # ==============================
 .env
-.env.*
 !.env.example
 
 # ==============================
@@ -35,8 +34,8 @@ logs/
 # ==============================
 # Alembic
 # ==============================
-# (Migration files biasanya tetap di-commit)
-# Jangan ignore alembic/versions/
+# Migration files tetap di-commit
+# JANGAN ignore alembic/versions/
 
 # ==============================
 # Docker
@@ -46,31 +45,40 @@ postgres-data/
 *.tar
 
 # ==============================
-# IDE
+# Mosquitto
+# ==============================
+mosquitto/data/
+mosquitto/log/
+mosquitto/config/passwd
+
+# ==============================
+# IDE & Editor
 # ==============================
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
 # ==============================
 # OS Files
 # ==============================
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # ==============================
-# Testing / Coverage
+# Testing & Coverage
 # ==============================
 .coverage
 htmlcov/
 .pytest_cache/
+.tox/
 
 # ==============================
-# Build
+# Build & Distribution
 # ==============================
 build/
 dist/
 *.egg-info/
-logs/
-*.log
+*.egg

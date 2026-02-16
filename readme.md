@@ -1,8 +1,8 @@
 # 🐔 Smart Coop IoT Backend (Sistem Kandang Ayam Pintar)
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue?style=for-the-badge&logo=python)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688?style=for-the-badge&logo=fastapi)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=for-the-badge&logo=postgresql)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=for-the-badge&logo=fastapi)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791?style=for-the-badge&logo=postgresql)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker)
 ![MQTT](https://img.shields.io/badge/MQTT-Mosquitto-3C5280?style=for-the-badge&logo=eclipse-mosquitto)
 
@@ -15,7 +15,8 @@ Backend server untuk sistem monitoring dan controlling kandang ayam berbasis IoT
 ### 1. 🔐 Keamanan & Autentikasi
 - **Google OAuth Login:** Login menggunakan akun Google.
 - **JWT Protection:** Semua endpoint diamankan dengan Token JWT.
-- **Role-Based:** Pemisahan antara User (Pemilik Kandang) dan Admin (Pabrik).
+- **Rate Limiting:** Proteksi terhadap DDoS dan brute force attack.
+- **CORS Middleware:** Kontrol akses dari frontend berbeda domain.
 
 ### 2. 🏭 Manajemen Device (Whitelist System)
 - **Factory Registration:** Device harus didaftarkan dulu oleh "Pabrik" di database (Pre-seeding).
@@ -25,6 +26,7 @@ Backend server untuk sistem monitoring dan controlling kandang ayam berbasis IoT
 
 ### 3. 📡 Real-time Monitoring & Alerting
 - **MQTT Ingestion:** Menerima data sensor (Suhu, Kelembapan, Amonia) secara real-time via Mosquitto.
+- **MQTT Authentication:** Mendukung username/password untuk keamanan broker.
 - **Smart Alerting:** Mendeteksi bahaya otomatis dan menyimpan flag `is_alert`.
     - 🚨 *Suhu > 35°C* (Panas)
     - ❄️ *Suhu < 20°C* (Dingin)
@@ -35,17 +37,26 @@ Backend server untuk sistem monitoring dan controlling kandang ayam berbasis IoT
 - Mengontrol perangkat keras (Kipas, Lampu, Pompa) dari aplikasi via API.
 - Backend meneruskan perintah ke Device melalui topik MQTT.
 
+### 5. 📊 Logging & Monitoring
+- **Rotating Log Files:** Log tersimpan di `logs/backend.log` dengan rotasi otomatis.
+- **Structured Logging:** Format log yang konsisten untuk debugging.
+- **Health Check:** Endpoint `/` untuk monitoring status server dan database.
+
 ---
 
 ## 🛠️ Tech Stack & Arsitektur
 
-* **Language:** Python 3.11
-* **Framework:** FastAPI (High Performance)
-* **Database:** PostgreSQL (Relational DB)
-* **Message Broker:** Eclipse Mosquitto (MQTT)
-* **ORM:** SQLAlchemy (Database Interaction)
-* **Validation:** Pydantic Schemas
-* **Container:** Docker & Docker Compose
+| Category | Technology |
+|----------|------------|
+| **Language** | Python 3.11 |
+| **Framework** | FastAPI 0.115.0 |
+| **Database** | PostgreSQL 15 |
+| **Message Broker** | Eclipse Mosquitto 2.x |
+| **ORM** | SQLAlchemy 2.0 |
+| **Validation** | Pydantic 2.x |
+| **Rate Limiting** | SlowAPI |
+| **Container** | Docker & Docker Compose |
+| **Testing** | pytest, httpx |
 
 ---
 
@@ -53,7 +64,7 @@ Backend server untuk sistem monitoring dan controlling kandang ayam berbasis IoT
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/username/pkl-pcb.git
+git clone https://github.com/Bagus-DevLab/PKL_PCB_BACKEND.git
 cd pkl-pcb
 ```
 
@@ -61,31 +72,60 @@ cd pkl-pcb
 Buat file `.env` di root folder (copy dari `.env.example`).
 
 ```env
-# Database
-DATABASE_URL=postgresql://iot_user:supersecret@postgres:5432/iot_db
+# ===========================================
+# PKL PCB IoT Backend - Environment Variables
+# ===========================================
+
+# Environment: development / production
+ENVIRONMENT=development
+
+# ===========================================
+# Database (PostgreSQL)
+# ===========================================
 POSTGRES_USER=iot_user
 POSTGRES_PASSWORD=supersecret
 POSTGRES_DB=iot_db
+DATABASE_URL=postgresql://iot_user:supersecret@postgres:5432/iot_db
 
-# Security
+# ===========================================
+# JWT Authentication
+# ===========================================
 SECRET_KEY=ganti_dengan_random_string_panjang_dan_rahasia
 ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
+ACCESS_TOKEN_EXPIRE_MINUTES=10080  # 7 hari
 
+# ===========================================
 # Google OAuth (Dapat dari Google Cloud Console)
+# ===========================================
 GOOGLE_CLIENT_ID=your_client_id
 GOOGLE_CLIENT_SECRET=your_client_secret
 BASE_URL=http://localhost:8000
 
-# MQTT
+# ===========================================
+# MQTT (Mosquitto)
+# ===========================================
 MQTT_BROKER=mosquitto
 MQTT_PORT=1883
 MQTT_TOPIC=devices/+/data
+MQTT_USERNAME=
+MQTT_PASSWORD=
+
+# ===========================================
+# CORS (Frontend Origins)
+# ===========================================
+CORS_ORIGINS=["http://localhost:3000","http://localhost:8080"]
 ```
 
 ### 3. Jalankan dengan Docker
+
+**Development (dengan hot-reload):**
 ```bash
 docker compose up -d --build
+```
+
+**Production (tanpa hot-reload, dengan workers):**
+```bash
+docker compose -f docker-compose.yml up -d --build
 ```
 
 ### 4. ⚠️ PENTING: Seeding Data Pabrik (Initial Setup)
@@ -131,6 +171,46 @@ docker exec -i pcb_pkl_postgres psql -U iot_user -d iot_db < seed.sql
 
 ---
 
+## 🔒 Setup MQTT Authentication (Opsional)
+
+Untuk mengamankan MQTT broker agar tidak bisa diakses sembarang orang:
+
+### 1. Buat Password File
+```bash
+# Install mosquitto tools di WSL/Linux
+sudo apt-get install -y mosquitto
+
+# Buat password file
+mosquitto_passwd -c mosquitto/config/passwd device_user
+# Masukkan password (2x)
+
+# Fix permission
+sudo chown 1883:1883 mosquitto/config/passwd
+```
+
+### 2. Edit mosquitto.conf
+```properties
+listener 1883
+allow_anonymous false
+password_file /mosquitto/config/passwd
+persistence true
+persistence_location /mosquitto/data/
+log_dest stdout
+```
+
+### 3. Update .env
+```env
+MQTT_USERNAME=device_user
+MQTT_PASSWORD=your_password
+```
+
+### 4. Restart
+```bash
+docker compose restart mosquitto backend mqtt_worker
+```
+
+---
+
 ## 📚 Dokumentasi API
 
 Akses Swagger UI untuk dokumentasi interaktif:  
@@ -138,15 +218,17 @@ Akses Swagger UI untuk dokumentasi interaktif:
 
 ### Endpoint Penting
 
-| Method | Endpoint | Deskripsi |
-|--------|----------|-----------|
-| `POST` | `/auth/google` | Login User via Google Token |
-| `POST` | `/devices/claim` | User mengklaim device (Scan QR) |
-| `GET` | `/devices/` | List semua device milik user (+ Status Online) |
-| `GET` | `/devices/{id}/logs` | Grafik history suhu & amonia |
-| `GET` | `/devices/{id}/alerts` | List riwayat bahaya (Alerts only) |
-| `POST` | `/devices/{id}/control` | Nyalakan/Matikan alat (Remote) |
-| `POST` | `/devices/{id}/unclaim` | Hapus device dari akun user |
+| Method | Endpoint | Deskripsi | Rate Limit |
+|--------|----------|-----------|------------|
+| `GET` | `/` | Health check | 60/min |
+| `GET` | `/auth/google/login` | Login via Google | 10/min |
+| `GET` | `/users/me` | Get user profile | 30/min |
+| `POST` | `/devices/claim` | Klaim device (Scan QR) | 10/min |
+| `GET` | `/devices/` | List devices milik user | 30/min |
+| `GET` | `/devices/{id}/logs` | History data sensor | 60/min |
+| `GET` | `/devices/{id}/alerts` | Riwayat bahaya | 60/min |
+| `POST` | `/devices/{id}/control` | Remote control device | 30/min |
+| `POST` | `/devices/{id}/unclaim` | Lepas kepemilikan | 10/min |
 
 ---
 
@@ -159,10 +241,85 @@ Device harus mengirim data JSON ke topik: `devices/{MAC_ADDRESS}/data`
 ```json
 {
   "temp": 30.5,
-  "humid": 75.0,
+  "humidity": 75.0,
   "ammonia": 0.5    
 }
 ```
+
+### Terima Perintah Kontrol (Subscribe)
+Device harus subscribe ke topik: `devices/{MAC_ADDRESS}/control`
+
+**Format JSON yang diterima:**
+```json
+{
+  "component": "fan",
+  "state": "ON"
+}
+```
+
+### Contoh Kode ESP32 (dengan Auth)
+```cpp
+#include <PubSubClient.h>
+
+const char* mqtt_server = "IP_SERVER_ANDA";
+const int mqtt_port = 1883;
+const char* mqtt_user = "device_user";      // Sesuaikan dengan .env
+const char* mqtt_pass = "your_password";    // Sesuaikan dengan .env
+const char* mac_address = "AA:BB:CC:DD:EE:FF";
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+void reconnect() {
+  while (!client.connected()) {
+    if (client.connect("ESP32_Client", mqtt_user, mqtt_pass)) {
+      // Subscribe ke topic control
+      String topic = "devices/" + String(mac_address) + "/control";
+      client.subscribe(topic.c_str());
+    } else {
+      delay(5000);
+    }
+  }
+}
+
+void sendSensorData(float temp, float humidity, float ammonia) {
+  String topic = "devices/" + String(mac_address) + "/data";
+  String payload = "{\"temp\":" + String(temp) + 
+                   ",\"humidity\":" + String(humidity) + 
+                   ",\"ammonia\":" + String(ammonia) + "}";
+  client.publish(topic.c_str(), payload.c_str());
+}
+```
+
+---
+
+## 🐞 Debug dengan MQTTX
+
+[MQTTX](https://mqttx.app/) adalah GUI client untuk testing MQTT.
+
+### Setup Koneksi
+| Field | Value |
+|-------|-------|
+| Host | `localhost` |
+| Port | `1883` |
+| Username | `device_user` (jika auth aktif) |
+| Password | `your_password` (jika auth aktif) |
+
+### Testing
+
+**1. Monitor Data Sensor:**
+- Subscribe ke: `devices/#` atau `devices/+/data`
+
+**2. Simulasi Hardware (Kirim Data Test):**
+- Topic: `devices/AA:BB:CC:DD:EE:FF/data`
+- Payload:
+```json
+{"temp": 32.5, "humidity": 65, "ammonia": 15}
+```
+
+**3. Monitor Perintah Kontrol:**
+- Subscribe ke: `devices/+/control`
+- Trigger dari Swagger UI: `POST /devices/{id}/control`
 
 ---
 
@@ -170,9 +327,40 @@ Device harus mengirim data JSON ke topik: `devices/{MAC_ADDRESS}/data`
 
 | Problem | Solusi |
 |---------|--------|
-| Error "no such service" saat cek log? | Pastikan nama service benar. Gunakan: `docker compose logs -f mqtt_worker` |
-| Data masuk MQTT tapi tidak muncul di Database? | Cek apakah MAC Address device sudah terdaftar di database (Seeding). Jika belum, worker akan menolak data (⚠️ Device Not Found) |
-| Status Device selalu OFFLINE? | Pastikan device mengirim data setidaknya tiap 5 menit. Backend mengecek kolom `last_heartbeat` |
+| Container tidak jalan? | `docker compose logs -f backend` untuk lihat error |
+| MQTT "Not authorized"? | Cek username/password di .env dan mosquitto config |
+| Data tidak masuk database? | Pastikan MAC Address sudah di-seed ke database |
+| Device selalu OFFLINE? | Device harus kirim data tiap 5 menit (heartbeat) |
+| Rate limit exceeded? | Tunggu 1 menit atau kurangi frekuensi request |
+| CORS error di frontend? | Tambahkan origin frontend ke `CORS_ORIGINS` di .env |
+
+### Cek Log
+```bash
+# Backend API
+docker compose logs -f backend
+
+# MQTT Worker
+docker compose logs -f mqtt_worker
+
+# Mosquitto Broker
+docker compose logs -f mosquitto
+
+# Semua service
+docker compose logs -f
+```
+
+---
+
+## 🚀 Deploy ke Production
+
+### Checklist Sebelum Deploy
+
+- [ ] Set `ENVIRONMENT=production` di `.env`
+- [ ] Ganti `SECRET_KEY` dengan random string 64 karakter
+- [ ] Update `BASE_URL` dengan domain production
+- [ ] Update `CORS_ORIGINS` dengan domain frontend
+- [ ] (Opsional) Setup MQTT Authentication
+- [ ] (Opsional) Setup HTTPS dengan reverse proxy (nginx/traefik)
 
 ---
 
@@ -337,7 +525,13 @@ curl -X POST http://localhost:8000/devices/{device_id}/control \
 
 ---
 
-## �👨‍💻 Author
+## 👨‍💻 Author
 
 **Bagus** - Backend Engineer  
 PKL Project 2026
+
+---
+
+## 📄 License
+
+Project ini dibuat untuk keperluan pendidikan (PKL/Skripsi).
