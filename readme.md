@@ -144,6 +144,52 @@ Device harus mengirim data JSON ke topik: `devices/{MAC_ADDRESS}/data`
 
 ---
 
+## 🧪 Unit Testing
+
+Project ini dilengkapi dengan unit test menggunakan **pytest**.
+
+### Struktur Test
+```
+tests/
+├── __init__.py
+├── conftest.py       # Fixtures & test database setup
+├── test_security.py  # Test JWT token (8 tests)
+├── test_device.py    # Test endpoint /devices (20 tests)
+└── test_user.py      # Test endpoint /users & health (7 tests)
+```
+
+### Cara Menjalankan Test
+
+```bash
+# Install dependencies testing
+pip install pytest pytest-asyncio httpx
+
+# Jalankan semua test
+pytest
+
+# Dengan verbose output
+pytest -v
+
+# Jalankan test spesifik
+pytest tests/test_device.py
+
+# Dengan coverage report (opsional)
+pip install pytest-cov
+pytest --cov=app
+```
+
+### Test Coverage
+
+| Module | Test Cases | Deskripsi |
+|--------|------------|-----------|
+| `test_security.py` | 8 | Create/verify JWT token, expired token, invalid token |
+| `test_device.py` | 20 | Claim, unclaim, list devices, logs, alerts, control |
+| `test_user.py` | 7 | Get current user, auth validation, health check |
+
+**Total: 35 test cases**
+
+---
+
 ## 👨‍💻 Author
 
 **Bagus** - Backend Engineer  
