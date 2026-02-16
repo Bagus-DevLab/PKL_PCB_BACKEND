@@ -44,6 +44,8 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    volumes:
+      - ./logs:/app/logs  # Mount folder logs agar tersimpan di host
     networks:
       - iot_network
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -53,7 +55,6 @@ services:
       mosquitto:
         condition: service_started
 
-  # --- TAMBAHKAN SERVICE BARU INI ---
   mqtt_worker:
     build: .  # Kita pakai image yang sama dengan backend (ada python & library-nya)
     container_name: pcb_pkl_mqtt_worker
