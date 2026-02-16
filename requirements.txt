@@ -1,44 +1,49 @@
 # =========================
 # FastAPI Core
 # =========================
-fastapi
-uvicorn[standard]
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
 
 # =========================
 # Database
 # =========================
-SQLAlchemy>=2.0
-psycopg2-binary
-alembic
+SQLAlchemy==2.0.35
+psycopg2-binary==2.9.9
+alembic==1.13.2
 
 # =========================
 # Validation
 # =========================
-pydantic
-pydantic-settings
-python-dotenv
+pydantic==2.9.2
+pydantic-settings==2.5.2
+python-dotenv==1.0.1
 
 # =========================
 # Authentication
 # =========================
-python-jose[cryptography]
-passlib[bcrypt]
-authlib
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+authlib==1.3.2
 
 # =========================
 # MQTT
 # =========================
-paho-mqtt
+paho-mqtt==1.6.1
+
+# =========================
+# Security & Rate Limiting
+# =========================
+slowapi==0.1.9
 
 # =========================
 # Testing
 # =========================
-pytest
-pytest-asyncio
-httpx
+pytest==8.3.3
+pytest-asyncio==0.24.0
+httpx==0.27.2
 
 # =========================
 # Utilities
 # =========================
-requests
-fastapi-sso
+requests==2.32.3
+fastapi-sso==0.16.0

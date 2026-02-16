@@ -1,6 +1,7 @@
 import os
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+from typing import List
 
 
 class Settings(BaseSettings):
@@ -8,6 +9,9 @@ class Settings(BaseSettings):
     Konfigurasi aplikasi yang diambil dari environment variables.
     Gunakan .env file untuk development.
     """
+    
+    # Environment
+    ENVIRONMENT: str = "development"  # development / production
     
     # Database
     DATABASE_URL: str
@@ -26,14 +30,23 @@ class Settings(BaseSettings):
     MQTT_BROKER: str = "mosquitto"
     MQTT_PORT: int = 1883
     MQTT_TOPIC: str = "devices/+/data"
+    MQTT_USERNAME: str = ""
+    MQTT_PASSWORD: str = ""
 
     POSTGRES_USER: str 
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
     
+    # CORS
+    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8080"]
+    
     class Config:
         env_file = ".env"
         case_sensitive = True
+    
+    @property
+    def is_production(self) -> bool:
+        return self.ENVIRONMENT == "production"
 
 
 @lru_cache()

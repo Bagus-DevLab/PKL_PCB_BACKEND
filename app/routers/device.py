@@ -129,6 +129,10 @@ def control_device(
         # Bikin client MQTT dadakan
         client = mqtt.Client()
         
+        # Set credentials jika ada
+        if settings.MQTT_USERNAME and settings.MQTT_PASSWORD:
+            client.username_pw_set(settings.MQTT_USERNAME, settings.MQTT_PASSWORD)
+        
         # Connect ke Broker (mosquitto)
         client.connect(settings.MQTT_BROKER, settings.MQTT_PORT, 60)
         

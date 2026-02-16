@@ -17,12 +17,12 @@ if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
 CALLBACK_PATH = "/auth/google/callback"
 REDIRECT_URI = f"{settings.BASE_URL.rstrip('/')}{CALLBACK_PATH}"
 
-# Setup SSO
+# Setup SSO - allow_insecure_http hanya untuk development
 sso = GoogleSSO(
     client_id=settings.GOOGLE_CLIENT_ID,
     client_secret=settings.GOOGLE_CLIENT_SECRET,
     redirect_uri=REDIRECT_URI,
-    allow_insecure_http=True 
+    allow_insecure_http=not settings.is_production  # False di production!
 )
 
 @router.get("/google/login")

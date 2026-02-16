@@ -1,46 +1,73 @@
 import logging
-from fastapi import Depends, FastAPI
+from contextlib import asynccontextmanager
+from fastapi import Depends, FastAPI, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from app.database import Base, engine, get_db
 from app.routers import auth_router, user_router, device_router
 from app.models import User, Device, SensorLog
 from app.core.logging_config import setup_logging
+from app.core.config import settings
 
 # Setup logging
 setup_logging()
 logger = logging.getLogger(__name__)
 
-app = FastAPI(
-    title="PKL PCB API",
-    description="API untuk monitoring kandang ayam berbasis IoT",
-    version="1.0.0"
-)
+# Rate Limiter
+limiter = Limiter(key_func=get_remote_address)
 
-# Include Routers
-app.include_router(auth_router)
-app.include_router(user_router)
-app.include_router(device_router)
-    
-@app.on_event("startup")
-def on_startup():
-    """Create database tables on startup"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifecycle manager for startup and shutdown events"""
+    # Startup
     logger.info("=" * 50)
     logger.info("PKL PCB IoT Backend Starting...")
     logger.info("=" * 50)
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created/verified")
     logger.info(f"API Docs available at: /docs")
+    logger.info(f"Environment: {'PRODUCTION' if settings.ENVIRONMENT == 'production' else 'DEVELOPMENT'}")
     logger.info("Server ready to accept connections")
-
-@app.on_event("shutdown")
-def on_shutdown():
-    """Cleanup on shutdown"""
+    
+    yield  # Server berjalan
+    
+    # Shutdown
     logger.info("Server shutting down...")
 
+app = FastAPI(
+    title="PKL PCB API",
+    description="API untuk monitoring kandang ayam berbasis IoT",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# Rate Limiter State
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS Middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include Routers
+app.include_router(auth_router)
+app.include_router(user_router)
+app.include_router(device_router)
+
 @app.get("/", tags=["Health"])
-def health_check(db: Session = Depends(get_db)):
+@limiter.limit("60/minute")
+def health_check(request: Request, db: Session = Depends(get_db)):
     """Health check endpoint untuk memastikan database berjalan"""
     try:
         result = db.execute(text("SELECT 1")).scalar()
@@ -48,5 +75,8 @@ def health_check(db: Session = Depends(get_db)):
         return {"status": "healthy", "database_alive": bool(result)}
     except Exception as e:
         logger.error(f"Health check GAGAL - Database error: {str(e)}")
-        return {"status": "unhealthy", "database_alive": False, "error": str(e)}
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"status": "unhealthy", "database_alive": False, "error": str(e)}
+        )
 

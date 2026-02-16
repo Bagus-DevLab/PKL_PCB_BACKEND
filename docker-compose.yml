@@ -48,7 +48,9 @@ services:
       - ./logs:/app/logs  # Mount folder logs agar tersimpan di host
     networks:
       - iot_network
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # Production: gunakan workers, tanpa --reload
+    # Development: override dengan docker-compose.override.yml
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
     depends_on:
       postgres:
         condition: service_healthy

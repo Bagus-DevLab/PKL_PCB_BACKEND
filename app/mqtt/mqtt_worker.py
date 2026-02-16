@@ -26,10 +26,13 @@ def get_db():
 
 # Callback saat berhasil connect ke Broker
 def on_connect(client, userdata, flags, rc):
-    logger.info(f"Terhubung ke MQTT Broker dengan kode: {rc}")
-    # Subscribe ke semua topic device
-    client.subscribe(MQTT_TOPIC)
-    logger.info(f"Sedang mendengarkan topic: {MQTT_TOPIC}")
+    if rc == 0:
+        logger.info(f"Terhubung ke MQTT Broker dengan kode: {rc}")
+        # Subscribe ke semua topic device
+        client.subscribe(MQTT_TOPIC)
+        logger.info(f"Sedang mendengarkan topic: {MQTT_TOPIC}")
+    else:
+        logger.error(f"Gagal connect ke MQTT Broker! Kode: {rc}")
 
 def on_message(client, userdata, msg):
     db = SessionLocal()
@@ -101,6 +104,12 @@ def on_message(client, userdata, msg):
 
 # Setup Client
 client = mqtt.Client()
+
+# Set credentials jika ada (untuk production)
+if settings.MQTT_USERNAME and settings.MQTT_PASSWORD:
+    client.username_pw_set(settings.MQTT_USERNAME, settings.MQTT_PASSWORD)
+    logger.info("MQTT Authentication enabled")
+
 client.on_connect = on_connect
 client.on_message = on_message
 

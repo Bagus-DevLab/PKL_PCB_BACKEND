@@ -1,0 +1,15 @@
+# Development overrides - otomatis dimuat oleh docker compose
+# File ini untuk development dengan hot-reload
+# 
+# Untuk production: docker compose -f docker-compose.yml up -d
+# Untuk development: docker compose up -d (otomatis pakai override)
+
+version: "3.9"
+
+services:
+  backend:
+    # Development mode dengan hot-reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./logs:/app/logs
+      - .:/app  # Mount source code untuk hot-reload

@@ -23,6 +23,8 @@ os.environ["MQTT_TOPIC"] = "devices/+/data"
 os.environ["POSTGRES_USER"] = "test"
 os.environ["POSTGRES_PASSWORD"] = "test"
 os.environ["POSTGRES_DB"] = "test"
+os.environ["ENVIRONMENT"] = "development"
+os.environ["CORS_ORIGINS"] = '["http://localhost:3000"]'
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
