@@ -1,6 +1,11 @@
+import logging
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+logger.info(f"Connecting to database...")
 
 engine = create_engine(
     settings.DATABASE_URL,
@@ -15,6 +20,7 @@ SessionLocal = sessionmaker(
 
 Base = declarative_base()
 
+logger.info("Database engine created successfully")
 
 from sqlalchemy.orm import Session
 
@@ -22,5 +28,8 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    except Exception as e:
+        logger.error(f"Database session error: {str(e)}")
+        raise
     finally:
         db.close()

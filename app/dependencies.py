@@ -1,3 +1,4 @@
+import logging
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -5,6 +6,8 @@ from uuid import UUID
 from app.database import get_db
 from app.models.user import User
 from app.core.security import verify_token
+
+logger = logging.getLogger(__name__)
 
 # 1. Ganti Scheme jadi HTTPBearer
 # Ini bikin Swagger UI cuma nampilin kotak isian token doang (Simple)
@@ -30,6 +33,7 @@ async def get_current_user(
     # Cek Token Valid Gak?
     payload = verify_token(token)
     if payload is None:
+        logger.warning(f"Auth GAGAL - Token tidak valid atau expired")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token tidak valid atau sudah kadaluarsa",
@@ -39,6 +43,7 @@ async def get_current_user(
     # Ambil ID User
     user_id: str = payload.get("sub")
     if user_id is None:
+        logger.warning(f"Auth GAGAL - Token tanpa user ID")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token rusak (tidak ada ID user)",
@@ -48,6 +53,7 @@ async def get_current_user(
     try:
         user_uuid = UUID(user_id)
     except ValueError:
+        logger.warning(f"Auth GAGAL - Format UUID tidak valid: {user_id}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token rusak (format ID user tidak valid)",
@@ -56,9 +62,11 @@ async def get_current_user(
     # Cek DB
     user = db.query(User).filter(User.id == user_uuid).first()
     if user is None:
+        logger.warning(f"Auth GAGAL - User tidak ditemukan di DB: {user_id}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User tidak ditemukan",
         )
-        
+    
+    logger.debug(f"Auth SUKSES - User {user.email} terautentikasi")
     return user
