@@ -142,3 +142,40 @@ def get_device_alerts(
         .order_by(SensorLog.timestamp.desc())\
         .limit(10)\
         .all()
+        
+        
+@router.post("/{device_id}/unclaim")
+def unclaim_device(
+    device_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Melepaskan kepemilikan device. 
+    Device akan kembali menjadi 'Available' untuk diklaim orang lain.
+    """
+    # 1. Cek dulu: Bener gak ini device milik user yang login?
+    # Security Check: Jangan sampe user A bisa unclaim device user B!
+    device = db.query(Device).filter(
+        Device.id == device_id, 
+        Device.user_id == current_user.id
+    ).first()
+
+    if not device:
+        raise HTTPException(
+            status_code=404, 
+            detail="Device tidak ditemukan atau bukan milik Anda!"
+        )
+
+    # 2. Proses Unclaim (Reset ke Pengaturan Pabrik)
+    device.user_id = None  # Copot User ID (Jadi NULL)
+    device.name = None     # Hapus nama kandang user (Reset)
+    
+    # Opsional: Apakah mau hapus log history juga? 
+    # Buat PKL, mending jangan dihapus biar datanya tetep ada buat laporan.
+    # Tapi kalau mau privasi, log harusnya dihapus.
+    
+    db.commit()
+    db.refresh(device)
+
+    return {"status": "success", "message": "Device berhasil di-unclaim. Sekarang device bebas diklaim lagi."}
