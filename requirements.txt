@@ -31,6 +31,13 @@ authlib
 paho-mqtt
 
 # =========================
+# Testing
+# =========================
+pytest
+pytest-asyncio
+httpx
+
+# =========================
 # Utilities
 # =========================
 requests

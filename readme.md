@@ -128,7 +128,7 @@ Device harus mengirim data JSON ke topik: `devices/{MAC_ADDRESS}/data`
 {
   "temp": 30.5,
   "humid": 75.0,
-  "ammonia": 0.5
+  "ammonia": 0.5    
 }
 ```
 
