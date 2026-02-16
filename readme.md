@@ -190,7 +190,122 @@ pytest --cov=app
 
 ---
 
-## 👨‍💻 Author
+## � Blackbox Testing (API Testing)
+
+Blackbox testing dilakukan untuk menguji API dari perspektif pengguna tanpa melihat kode internal.
+
+### 1. Menggunakan Swagger UI (Recommended)
+
+Akses dokumentasi interaktif di: **http://localhost:8000/docs**
+
+**Langkah Testing:**
+1. Buka Swagger UI di browser
+2. Klik endpoint yang ingin ditest
+3. Klik tombol **"Try it out"**
+4. Isi parameter yang diperlukan
+5. Klik **"Execute"**
+6. Lihat response code dan body
+
+### 2. Menggunakan Postman
+
+Import collection atau buat request manual:
+
+**A. Health Check (Tanpa Auth)**
+```
+GET http://localhost:8000/
+```
+
+**B. Login Google OAuth**
+```
+GET http://localhost:8000/auth/google/login
+```
+*Akan redirect ke halaman login Google*
+
+**C. Get User Profile (Dengan Auth)**
+```
+GET http://localhost:8000/users/me
+Headers:
+  Authorization: Bearer <JWT_TOKEN>
+```
+
+**D. Claim Device**
+```
+POST http://localhost:8000/devices/claim
+Headers:
+  Authorization: Bearer <JWT_TOKEN>
+  Content-Type: application/json
+Body:
+{
+  "mac_address": "AA:BB:CC:DD:EE:FF",
+  "name": "Kandang Ayam 1"
+}
+```
+
+**E. Get My Devices**
+```
+GET http://localhost:8000/devices/
+Headers:
+  Authorization: Bearer <JWT_TOKEN>
+```
+
+**F. Control Device**
+```
+POST http://localhost:8000/devices/{device_id}/control
+Headers:
+  Authorization: Bearer <JWT_TOKEN>
+  Content-Type: application/json
+Body:
+{
+  "component": "kipas",
+  "state": true
+}
+```
+
+### 3. Menggunakan cURL
+
+```bash
+# Health Check
+curl -X GET http://localhost:8000/
+
+# Get User Profile (ganti TOKEN dengan JWT valid)
+curl -X GET http://localhost:8000/users/me \
+  -H "Authorization: Bearer TOKEN"
+
+# Claim Device
+curl -X POST http://localhost:8000/devices/claim \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"mac_address": "AA:BB:CC:DD:EE:FF", "name": "Kandang 1"}'
+
+# Get My Devices
+curl -X GET http://localhost:8000/devices/ \
+  -H "Authorization: Bearer TOKEN"
+
+# Control Device (nyalakan kipas)
+curl -X POST http://localhost:8000/devices/{device_id}/control \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"component": "kipas", "state": true}'
+```
+
+### 4. Test Scenarios Checklist
+
+| Scenario | Expected Result | Status Code |
+|----------|-----------------|-------------|
+| Health check | `{"status": "healthy"}` | 200 |
+| Access protected endpoint tanpa token | Unauthorized | 401 |
+| Access protected endpoint dengan token expired | Unauthorized | 401 |
+| Claim device dengan MAC tidak terdaftar | Not Found | 404 |
+| Claim device yang sudah diklaim | Bad Request | 400 |
+| Claim device berhasil | Device data | 200 |
+| Get devices milik user | List devices | 200 |
+| Control device milik sendiri | Success message | 200 |
+| Control device milik orang lain | Not Found | 404 |
+| Unclaim device berhasil | Success message | 200 |
+
+---
+
+## �👨‍💻 Author
 
 **Bagus** - Backend Engineer  
 PKL Project 2026
