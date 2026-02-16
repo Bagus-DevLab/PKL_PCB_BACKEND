@@ -2,11 +2,16 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi_sso.sso.google import GoogleSSO
 from sqlalchemy.orm import Session
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from app.database import get_db
 from app.models.user import User
 from app.core import settings, create_access_token
 
 logger = logging.getLogger(__name__)
+
+# Rate Limiter
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -26,7 +31,8 @@ sso = GoogleSSO(
 )
 
 @router.get("/google/login")
-async def google_login():
+@limiter.limit("10/minute")
+async def google_login(request: Request):
     """Mengarahkan user ke halaman login Google"""
     logger.info("User memulai proses Google OAuth login")
     # PERBAIKAN: Pakai context manager
@@ -34,6 +40,7 @@ async def google_login():
         return await sso.get_login_redirect()
 
 @router.get("/google/callback")
+@limiter.limit("10/minute")
 async def google_callback(request: Request, db: Session = Depends(get_db)):
     try:
         # PERBAIKAN: Pakai context manager disini juga

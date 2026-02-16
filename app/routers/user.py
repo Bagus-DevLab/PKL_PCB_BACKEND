@@ -1,9 +1,14 @@
 import logging
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from app.models.user import User
 from app.dependencies import get_current_user
 
 logger = logging.getLogger(__name__)
+
+# Rate Limiter
+limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(
     prefix="/users", 
@@ -11,7 +16,11 @@ router = APIRouter(
 )
 
 @router.get("/me")
-async def read_current_user(current_user: User = Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def read_current_user(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
     """
     Endpoint ini TERKUNCI.
     Cuma bisa dibuka kalau bawa Token JWT yang valid.

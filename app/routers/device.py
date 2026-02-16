@@ -1,8 +1,10 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from typing import List
 from uuid import UUID
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.database import get_db
 from app.models.user import User
@@ -17,6 +19,9 @@ from app.schemas.device import DeviceControl
 
 logger = logging.getLogger(__name__)
 
+# Rate Limiter
+limiter = Limiter(key_func=get_remote_address)
+
 router = APIRouter(
     prefix="/devices",
     tags=["Devices"]
@@ -24,7 +29,9 @@ router = APIRouter(
 
 # 1. FITUR KLAIM (Gantikan Create)
 @router.post("/claim", response_model=DeviceResponse)
+@limiter.limit("10/minute")
 def claim_device(
+    request: Request,
     device_in: DeviceClaim, 
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -65,7 +72,9 @@ def claim_device(
 
 # 2. LIHAT DEVICE SAYA
 @router.get("/", response_model=List[DeviceResponse])
+@limiter.limit("30/minute")
 def read_my_devices(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -75,7 +84,9 @@ def read_my_devices(
 
 # 3. LIHAT DATA SENSOR (GRAFIK)
 @router.get("/{device_id}/logs", response_model=List[LogResponse])
+@limiter.limit("60/minute")
 def read_device_logs(
+    request: Request,
     device_id: UUID,
     limit: int = 20, 
     db: Session = Depends(get_db),
@@ -97,7 +108,9 @@ def read_device_logs(
     return logs
 
 @router.post("/{device_id}/control")
+@limiter.limit("30/minute")
 def control_device(
+    request: Request,
     device_id: UUID,
     command: DeviceControl, # Pake schema yang baru kita buat
     db: Session = Depends(get_db),
@@ -150,7 +163,9 @@ def control_device(
         raise HTTPException(status_code=500, detail=f"Gagal mengirim perintah MQTT: {str(e)}")
     
 @router.get("/{device_id}/alerts", response_model=List[LogResponse])
+@limiter.limit("60/minute")
 def get_device_alerts(
+    request: Request,
     device_id: UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -172,7 +187,9 @@ def get_device_alerts(
         
         
 @router.post("/{device_id}/unclaim")
+@limiter.limit("10/minute")
 def unclaim_device(
+    request: Request,
     device_id: UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
