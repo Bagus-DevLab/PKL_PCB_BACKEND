@@ -1,9 +1,12 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi_sso.sso.google import GoogleSSO
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
 from app.core import settings, create_access_token
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -70,5 +73,5 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
         }
 
     except Exception as e:
-        print(f"ERROR LOGIN: {str(e)}")
+        logger.error(f"ERROR LOGIN: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Login Gagal: {str(e)}")

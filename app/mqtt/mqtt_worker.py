@@ -1,10 +1,16 @@
 import json
+import logging
 import paho.mqtt.client as mqtt
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models.device import Device, SensorLog
 from app.core.config import settings
-from sqlalchemy.sql import  func
+from app.core.logging_config import setup_logging
+from sqlalchemy.sql import func
+
+# Setup logging (untuk standalone worker)
+setup_logging()
+logger = logging.getLogger(__name__)
 
 # Konfigurasi MQTT dari settings
 MQTT_BROKER = settings.MQTT_BROKER
@@ -20,10 +26,10 @@ def get_db():
 
 # Callback saat berhasil connect ke Broker
 def on_connect(client, userdata, flags, rc):
-    print(f"✅ Terhubung ke MQTT Broker dengan kode: {rc}")
+    logger.info(f"Terhubung ke MQTT Broker dengan kode: {rc}")
     # Subscribe ke semua topic device
     client.subscribe(MQTT_TOPIC)
-    print(f"📡 Sedang mendengarkan topic: {MQTT_TOPIC}")
+    logger.info(f"Sedang mendengarkan topic: {MQTT_TOPIC}")
 
 def on_message(client, userdata, msg):
     db = SessionLocal()
@@ -46,10 +52,10 @@ def on_message(client, userdata, msg):
 
             # 3. COMMIT SEKALIGUS
             db.commit() # Ini bakal simpan log baru DAN update last_heartbeat device
-            print(f"✅ Data masuk & Heartbeat updated: {device.name}")
+            logger.info(f"Data masuk & Heartbeat updated: {device.name}")
         
         else:
-            print(f"⚠️ Unknown MAC: {mac_address}")
+            logger.warning(f"Unknown MAC: {mac_address}")
         
         if device:
             temp = payload.get("temp", 0)
@@ -84,12 +90,12 @@ def on_message(client, userdata, msg):
             db.commit()
 
             if is_alert:
-                print(f"🚨 ALERT untuk {device.name}: {alert_msg}")
+                logger.warning(f"ALERT untuk {device.name}: {alert_msg}")
             else:
-                print(f"✅ Data normal untuk {device.name}")
+                logger.info(f"Data normal untuk {device.name}")
 
     except Exception as e:
-        print(f"❌ Error Worker: {e}")
+        logger.error(f"Error Worker: {e}")
     finally:
         db.close()
 
@@ -100,11 +106,11 @@ client.on_message = on_message
 
 # Loop utama
 if __name__ == "__main__":
-    print("🚀 MQTT Worker Starting...")
+    logger.info("MQTT Worker Starting...")
     try:
         # Connect ke broker
         client.connect(MQTT_BROKER, MQTT_PORT, 60)
         # Loop forever (Blocking)
         client.loop_forever()
     except Exception as e:
-        print(f"🔥 Gagal connect ke broker: {e}")
+        logger.error(f"Gagal connect ke broker: {e}")
