@@ -21,8 +21,17 @@ COPY requirements.txt .
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Buat user non-root untuk keamanan
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+
 # Copy seluruh project
 COPY . .
+
+# Buat folder logs dan set ownership
+RUN mkdir -p /app/logs && chown -R appuser:appgroup /app
+
+# Jalankan sebagai non-root user
+USER appuser
 
 # Expose port FastAPI
 EXPOSE 8000

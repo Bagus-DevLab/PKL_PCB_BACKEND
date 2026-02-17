@@ -90,4 +90,4 @@ async def google_callback(request: Request, db: Session = Depends(get_db)):
 
     except Exception as e:
         logger.error(f"Login GAGAL: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Login Gagal: {str(e)}")
+        raise HTTPException(status_code=500, detail="Login gagal. Silakan coba lagi.")

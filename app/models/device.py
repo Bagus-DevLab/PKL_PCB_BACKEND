@@ -17,7 +17,7 @@ class Device(Base):
     name = Column(String, nullable=True)
     
     last_heartbeat = Column(DateTime(timezone=True), nullable=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
 
     owner = relationship("User", back_populates="devices")
     logs = relationship("SensorLog", back_populates="device")
@@ -27,7 +27,7 @@ class SensorLog(Base):
     __tablename__ = "sensor_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(UUID(as_uuid=True), ForeignKey("devices.id"))
+    device_id = Column(UUID(as_uuid=True), ForeignKey("devices.id"), index=True)
     
     temperature = Column(Float)
     humidity = Column(Float)
@@ -36,5 +36,5 @@ class SensorLog(Base):
     is_alert = Column(Boolean, default=False) # True kalau suhu/amonia kacau
     alert_message = Column(String, nullable=True) # Pesan bahayanya ap
     
-    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     device = relationship("Device", back_populates="logs")

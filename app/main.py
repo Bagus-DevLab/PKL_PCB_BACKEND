@@ -53,6 +53,16 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# --- Global Exception Handler ---
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Tangkap semua unhandled exception agar detail internal tidak bocor ke client"""
+    logger.error(f"Unhandled error pada {request.method} {request.url.path}: {str(exc)}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Terjadi kesalahan internal. Silakan coba lagi."}
+    )
+
 # --- MIDDLEWARE: Request ID ---
 class RequestIdMiddleware(BaseHTTPMiddleware):
     """
@@ -103,6 +113,6 @@ def health_check(request: Request, db: Session = Depends(get_db)):
         logger.error(f"Health check GAGAL - Database error: {str(e)}")
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={"status": "unhealthy", "database_alive": False, "error": str(e)}
+            content={"status": "unhealthy", "database_alive": False}
         )
 

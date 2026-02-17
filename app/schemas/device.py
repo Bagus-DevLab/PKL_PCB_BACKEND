@@ -1,13 +1,33 @@
 from datetime import datetime, timedelta, timezone
-from pydantic import BaseModel, computed_field
-from typing import Optional
+from pydantic import BaseModel, computed_field, field_validator
+from typing import Optional, Literal
 from uuid import UUID
+import re
 
 
 class DeviceClaim(BaseModel):
     """Schema untuk mengklaim device baru via QR scan"""
     mac_address: str
     name: str  # Nama kandang yang diberikan user
+
+    @field_validator("mac_address")
+    @classmethod
+    def validate_mac_address(cls, v: str) -> str:
+        """Validasi format MAC address (XX:XX:XX:XX:XX:XX)"""
+        pattern = r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$"
+        if not re.match(pattern, v):
+            raise ValueError("Format MAC address tidak valid! Gunakan format XX:XX:XX:XX:XX:XX")
+        return v.upper()
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        """Validasi panjang nama device"""
+        if len(v.strip()) < 1:
+            raise ValueError("Nama device tidak boleh kosong")
+        if len(v) > 100:
+            raise ValueError("Nama device maksimal 100 karakter")
+        return v.strip()
 
 
 class DeviceResponse(BaseModel):
@@ -51,8 +71,8 @@ class DeviceUpdate(BaseModel):
 
 class DeviceControl(BaseModel):
     # Komponen apa yang mau dikontrol?
-    # Contoh: "lampu_utama", "kipas_angin", "pompa_air", "pakan_otomatis"
-    component: str 
+    # Hanya komponen yang valid yang diterima
+    component: Literal["kipas", "lampu", "pompa", "pakan_otomatis"]
     
     # Mau diapain?
     # True = NYALA (ON), False = MATI (OFF)

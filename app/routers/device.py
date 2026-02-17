@@ -17,6 +17,7 @@ import paho.mqtt.client as mqtt
 from app.core.config import settings
 from app.schemas.device import DeviceControl
 from app.core.request_context import get_request_id
+from app.mqtt.publisher import publish_control
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,8 @@ def read_device_logs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # Batasi limit agar tidak bisa dump seluruh tabel
+    limit = min(limit, 100)
     # Pastikan user cuma bisa liat data kandangnya sendiri
     device = db.query(Device).filter(Device.id == device_id, Device.user_id == current_user.id).first()
     if not device:
@@ -127,41 +130,16 @@ def control_device(
         logger.warning(f"Kontrol DITOLAK - device_id: {device_id} bukan milik {current_user.email}")
         raise HTTPException(status_code=404, detail="Device tidak ditemukan atau akses ditolak")
 
-    # 2. Siapkan Payload MQTT
-    # Kita kirim JSON biar alat gampang bacanya
-    mqtt_payload = {
-        "component": command.component,
-        "state": "ON" if command.state else "OFF"
-    }
-    
-    # Topic tujuan: devices/{MAC_ADDRESS}/control
-    # Ini standar komunikasi 2 arah yang rapi
-    mqtt_topic = f"devices/{device.mac_address}/control"
-
-    # 3. Eksekusi Publish ke MQTT Broker
+    # 2. Kirim perintah via shared MQTT client
     try:
-        # Bikin client MQTT dadakan
-        client = mqtt.Client()
-        
-        # Set credentials jika ada
-        if settings.MQTT_USERNAME and settings.MQTT_PASSWORD:
-            client.username_pw_set(settings.MQTT_USERNAME, settings.MQTT_PASSWORD)
-        
-        # Connect ke Broker (mosquitto)
-        client.connect(settings.MQTT_BROKER, settings.MQTT_PORT, 60)
-        
-        # Kirim Pesan!
-        client.publish(mqtt_topic, json.dumps(mqtt_payload))
-        
-        # Putus koneksi (biar hemat resource)
-        client.disconnect()
+        publish_control(device.mac_address, command.component, command.state)
         
         logger.info(f"Kontrol SUKSES - {command.component} {'ON' if command.state else 'OFF'} ke {device.name} (MAC: {device.mac_address})")
         return {"status": "success", "message": f"Perintah {command.component} dikirim ke {device.name}"}
 
     except Exception as e:
         logger.error(f"Kontrol GAGAL - MQTT Error untuk device {device.name}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Gagal mengirim perintah MQTT: {str(e)}")
+        raise HTTPException(status_code=500, detail="Gagal mengirim perintah ke device. Silakan coba lagi.")
     
 @router.get("/{device_id}/alerts", response_model=List[LogResponse])
 @limiter.limit("60/minute")
@@ -174,6 +152,12 @@ def get_device_alerts(
     """
     Menampilkan daftar riwayat kondisi bahaya di kandang.
     """
+    # Security Check: Pastikan device milik user yang login
+    device = db.query(Device).filter(Device.id == device_id, Device.user_id == current_user.id).first()
+    if not device:
+        logger.warning(f"Akses alerts DITOLAK - device_id: {device_id} oleh {current_user.email}")
+        raise HTTPException(status_code=404, detail="Device tidak ditemukan atau akses ditolak")
+
     alerts = db.query(SensorLog)\
         .filter(
             SensorLog.device_id == device_id, 
@@ -183,7 +167,7 @@ def get_device_alerts(
         .limit(10)\
         .all()
     
-    logger.debug(f"User {current_user.email} mengambil {len(alerts)} alerts dari device_id: {device_id}")
+    logger.debug(f"User {current_user.email} mengambil {len(alerts)} alerts dari device {device.name}")
     return alerts
         
         

@@ -29,6 +29,7 @@ def get_db():
     try:
         yield db
     except Exception as e:
+        db.rollback()
         logger.error(f"Database session error: {str(e)}")
         raise
     finally:

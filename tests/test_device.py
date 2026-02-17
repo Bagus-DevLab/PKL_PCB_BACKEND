@@ -31,7 +31,7 @@ class TestClaimDevice:
         response = client.post(
             "/devices/claim",
             json={
-                "mac_address": "XX:XX:XX:XX:XX:XX",  # MAC tidak ada
+                "mac_address": "FF:FF:FF:FF:FF:FF",  # MAC tidak ada di DB
                 "name": "Device Palsu"
             },
             headers=auth_headers
@@ -179,7 +179,7 @@ class TestGetDeviceAlerts:
             headers=auth_headers
         )
         
-        assert response.status_code == 200  # Returns empty karena filter di query
+        assert response.status_code == 404  # Akses ditolak
 
 
 class TestControlDevice:

@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     MQTT_USERNAME: str = ""
     MQTT_PASSWORD: str = ""
 
+    # Alert Thresholds (configurable via .env)
+    ALERT_TEMP_MAX: float = 35.0  # Suhu maksimum (°C)
+    ALERT_TEMP_MIN: float = 20.0  # Suhu minimum (°C)
+    ALERT_AMMONIA_MAX: float = 20.0  # Amonia maksimum (ppm)
+
     POSTGRES_USER: str 
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
