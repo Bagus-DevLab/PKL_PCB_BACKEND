@@ -38,9 +38,18 @@ Backend server untuk sistem monitoring dan controlling kandang ayam berbasis IoT
 - Backend meneruskan perintah ke Device melalui topik MQTT.
 
 ### 5. 📊 Logging & Monitoring
+- **Request ID Tracing:** Setiap request masuk mendapat ID unik 8 karakter (`X-Request-ID`) yang muncul di semua log terkait, memudahkan tracing end-to-end.
 - **Rotating Log Files:** Log tersimpan di `logs/backend.log` dengan rotasi otomatis.
-- **Structured Logging:** Format log yang konsisten untuk debugging.
+- **Structured Logging:** Format log yang konsisten dengan request ID untuk debugging.
 - **Health Check:** Endpoint `/` untuk monitoring status server dan database.
+- **Response Header:** Setiap response HTTP menyertakan header `X-Request-ID` untuk korelasi log dari sisi frontend.
+
+**Contoh Output Log:**
+```
+2026-02-17 12:30:00,123 - INFO - [app.main] - [a3f1b92c] - POST /devices/claim
+2026-02-17 12:30:00,125 - INFO - [app.routers.device] - [a3f1b92c] - User test@email.com mencoba klaim device
+2026-02-17 12:30:00,130 - INFO - [app.main] - [a3f1b92c] - POST /devices/claim -> 200
+```
 
 ---
 
@@ -349,6 +358,17 @@ docker compose logs -f mosquitto
 docker compose logs -f
 ```
 
+### Tracing Request dengan Request ID
+Setiap request mendapat ID unik di log (`[a3f1b92c]`). Untuk melacak satu request spesifik:
+```bash
+# Cari semua log terkait satu request
+grep "a3f1b92c" logs/backend.log
+
+# Atau dari docker logs
+docker compose logs backend | grep "a3f1b92c"
+```
+Request ID juga tersedia di response header `X-Request-ID` — berguna jika frontend perlu melaporkan error.
+
 ---
 
 ## 🚀 Deploy ke Production
@@ -376,6 +396,33 @@ tests/
 ├── test_security.py  # Test JWT token (8 tests)
 ├── test_device.py    # Test endpoint /devices (20 tests)
 └── test_user.py      # Test endpoint /users & health (7 tests)
+```
+
+### Struktur App
+```
+app/
+├── __init__.py
+├── main.py            # FastAPI app, middleware (Request ID), lifespan
+├── database.py        # SQLAlchemy engine & session
+├── dependencies.py    # Auth dependency (get_current_user)
+├── core/
+│   ├── config.py          # Pydantic Settings (.env)
+│   ├── security.py        # JWT create & verify
+│   ├── logging_config.py  # Logging setup dengan Request ID filter
+│   └── request_context.py # ContextVars untuk Request ID tracing
+├── models/
+│   ├── user.py            # Model User
+│   └── device.py          # Model Device & SensorLog
+├── routers/
+│   ├── auth.py            # Google OAuth login/callback
+│   ├── user.py            # GET /users/me
+│   └── device.py          # CRUD devices, logs, alerts, control
+├── schemas/
+│   ├── user.py            # Pydantic schemas User
+│   ├── device.py          # Pydantic schemas Device & Control
+│   └── sensor.py          # Pydantic schemas Sensor
+└── mqtt/
+    └── mqtt_worker.py     # MQTT subscriber & data ingestion
 ```
 
 ### Cara Menjalankan Test
@@ -514,6 +561,7 @@ curl -X POST http://localhost:8000/devices/{device_id}/control \
 |----------|-----------------|-------------|
 | Health check | `{"status": "healthy"}` | 200 |
 | Access protected endpoint tanpa token | Unauthorized | 401 |
+| Access protected endpoint tanpa prefix Bearer | Unauthorized | 401 |
 | Access protected endpoint dengan token expired | Unauthorized | 401 |
 | Claim device dengan MAC tidak terdaftar | Not Found | 404 |
 | Claim device yang sudah diklaim | Bad Request | 400 |
