@@ -8,12 +8,14 @@ from sqlalchemy import text
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.database import Base, engine, get_db
 from app.routers import auth_router, user_router, device_router
 from app.models import User, Device, SensorLog
 from app.core.logging_config import setup_logging
 from app.core.config import settings
+from app.core.request_context import request_id_var, generate_request_id, get_request_id
 
 # Setup logging
 setup_logging()
@@ -50,6 +52,30 @@ app = FastAPI(
 # Rate Limiter State
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# --- MIDDLEWARE: Request ID ---
+class RequestIdMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware yang generate request_id unik untuk setiap request.
+    Request ID ditambahkan ke response header 'X-Request-ID' juga.
+    """
+    async def dispatch(self, request: Request, call_next):
+        # Generate ID unik untuk request ini
+        rid = generate_request_id()
+        # Simpan ke contextvars (bisa diakses dari mana saja)
+        request_id_var.set(rid)
+        
+        logger.info(f"{request.method} {request.url.path}")
+        
+        response = await call_next(request)
+        
+        # Tambahkan ke response header (berguna untuk debugging frontend)
+        response.headers["X-Request-ID"] = rid
+        
+        logger.info(f"{request.method} {request.url.path} -> {response.status_code}")
+        return response
+
+app.add_middleware(RequestIdMiddleware)
 
 # CORS Middleware
 app.add_middleware(

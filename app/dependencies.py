@@ -6,6 +6,7 @@ from uuid import UUID
 from app.database import get_db
 from app.models.user import User
 from app.core.security import verify_token
+from app.core.request_context import get_request_id
 
 logger = logging.getLogger(__name__)
 

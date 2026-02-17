@@ -2,17 +2,21 @@ import logging
 import sys
 import os
 from logging.handlers import RotatingFileHandler
+from app.core.request_context import RequestIdFilter
 
 # 1. Konfigurasi Dasar
 LOG_DIR = "logs"
 LOG_FILENAME = "backend.log"
-LOG_FORMAT = "%(asctime)s - %(levelname)s - [%(name)s] - %(message)s"
+# Format log sekarang include [request_id] untuk tracing setiap request
+LOG_FORMAT = "%(asctime)s - %(levelname)s - [%(name)s] - [%(request_id)s] - %(message)s"
 
 def setup_logging():
     """
     Mengatur sistem logging agar output ke:
     1. Terminal (Console) -> Biar enak dilihat pas dev.
     2. File (logs/backend.log) -> Biar ada rekam jejak abadi.
+    
+    Setiap log otomatis punya request_id untuk tracing.
     """
     
     # Buat folder 'logs' kalau belum ada
@@ -28,6 +32,11 @@ def setup_logging():
     # Cek biar handler gak dobel (kalau reload)
     if logger.hasHandlers():
         logger.handlers.clear()
+
+    # Tambahkan filter request_id ke root logger
+    # Ini otomatis inject request_id ke SEMUA log di seluruh app
+    request_id_filter = RequestIdFilter()
+    logger.addFilter(request_id_filter)
 
     # --- HANDLER 1: FILE (Rotating) ---
     # File akan dipotong kalau ukurannya > 5MB, simpan 3 backup terakhir.

@@ -7,6 +7,7 @@ from slowapi.util import get_remote_address
 from app.database import get_db
 from app.models.user import User
 from app.core import settings, create_access_token
+from app.core.request_context import get_request_id
 
 logger = logging.getLogger(__name__)
 
