@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 # 1. Ganti Scheme jadi HTTPBearer
 # Ini bikin Swagger UI cuma nampilin kotak isian token doang (Simple)
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 async def get_current_user(
     # 2. Ambil credentials dari HTTPBearer
@@ -24,6 +24,14 @@ async def get_current_user(
     2. Validasi token
     3. Return user
     """
+    
+    # Cek apakah credentials ada (tidak ada = 401)
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Kredensial tidak diberikan",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     
     # 3. Ambil string tokennya (karena dibungkus object credentials)
     token = credentials.credentials 
