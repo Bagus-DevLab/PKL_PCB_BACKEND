@@ -17,25 +17,36 @@ Backend server untuk sistem monitoring dan controlling kandang ayam berbasis IoT
 - **JWT Protection:** Semua endpoint diamankan dengan Token JWT.
 - **Rate Limiting:** Proteksi terhadap DDoS dan brute force attack.
 - **CORS Middleware:** Kontrol akses dari frontend berbeda domain.
+- **Input Validation:** MAC address, nama device, dan komponen divalidasi ketat.
+- **Non-root Docker:** Container berjalan sebagai user non-root (`appuser`).
+- **Error Masking:** Detail error internal tidak bocor ke client (global exception handler).
+- **IDOR Protection:** User hanya bisa akses data device miliknya sendiri.
 
 ### 2. 🏭 Manajemen Device (Whitelist System)
 - **Factory Registration:** Device harus didaftarkan dulu oleh "Pabrik" di database (Pre-seeding).
 - **Secure Claiming:** User mengklaim device dengan memindai QR Code (MAC Address).
 - **Anti-Fake Device:** Mencegah user mendaftarkan MAC Address sembarangan.
+- **MAC Validation:** Format MAC address divalidasi dengan regex (`XX:XX:XX:XX:XX:XX`, hex only) dan di-uppercase otomatis.
+- **Nama Validasi:** Nama device wajib 1-100 karakter, auto-trimmed.
 - **Unclaim:** Fitur untuk melepas kepemilikan device (Reset ke pengaturan pabrik).
 
 ### 3. 📡 Real-time Monitoring & Alerting
-- **MQTT Ingestion:** Menerima data sensor (Suhu, Kelembapan, Amonia) secara real-time via Mosquitto.
+- **MQTT Ingestion:** Menerima data sensor (Suhu, Kelembapan, Amonia) secara real-time via Mosquitto (QoS 1).
 - **MQTT Authentication:** Mendukung username/password untuk keamanan broker.
-- **Smart Alerting:** Mendeteksi bahaya otomatis dan menyimpan flag `is_alert`.
-    - 🚨 *Suhu > 35°C* (Panas)
-    - ❄️ *Suhu < 20°C* (Dingin)
-    - ☠️ *Amonia > 20 ppm* (Beracun)
+- **Sensor Validation:** Payload divalidasi tipe data dan batas fisik sebelum disimpan.
+- **Smart Alerting:** Mendeteksi bahaya otomatis dan menyimpan flag `is_alert` (threshold configurable via `.env`).
+    - 🚨 *Suhu > 35°C* (Panas) — `ALERT_TEMP_MAX`
+    - ❄️ *Suhu < 20°C* (Dingin) — `ALERT_TEMP_MIN`
+    - ☠️ *Amonia > 20 ppm* (Beracun) — `ALERT_AMMONIA_MAX`
 - **Heartbeat Monitor:** Mendeteksi status **ONLINE/OFFLINE** device berdasarkan waktu kirim data terakhir (Threshold: 5 menit).
+- **Auto-Reconnect:** MQTT Worker otomatis reconnect dengan exponential backoff (1-30 detik).
+- **Atomic Commit:** Update heartbeat dan simpan log sensor dalam satu transaksi database.
 
 ### 4. 🎮 Remote Control (2-Arah)
-- Mengontrol perangkat keras (Kipas, Lampu, Pompa) dari aplikasi via API.
+- Mengontrol perangkat keras dari aplikasi via API.
+- Komponen yang didukung: `kipas`, `lampu`, `pompa`, `pakan_otomatis` (enum validation).
 - Backend meneruskan perintah ke Device melalui topik MQTT.
+- **Persistent MQTT Publisher:** Menggunakan singleton client (tidak membuat koneksi baru tiap request).
 
 ### 5. 📊 Logging & Monitoring
 - **Request ID Tracing:** Setiap request masuk mendapat ID unik 8 karakter (`X-Request-ID`) yang muncul di semua log terkait, memudahkan tracing end-to-end.
@@ -118,6 +129,13 @@ MQTT_PORT=1883
 MQTT_TOPIC=devices/+/data
 MQTT_USERNAME=
 MQTT_PASSWORD=
+
+# ===========================================
+# Alert Thresholds (opsional, ada default)
+# ===========================================
+ALERT_TEMP_MAX=35.0
+ALERT_TEMP_MIN=20.0
+ALERT_AMMONIA_MAX=20.0
 
 # ===========================================
 # CORS (Frontend Origins)
@@ -234,8 +252,8 @@ Akses Swagger UI untuk dokumentasi interaktif:
 | `GET` | `/users/me` | Get user profile | 30/min |
 | `POST` | `/devices/claim` | Klaim device (Scan QR) | 10/min |
 | `GET` | `/devices/` | List devices milik user | 30/min |
-| `GET` | `/devices/{id}/logs` | History data sensor | 60/min |
-| `GET` | `/devices/{id}/alerts` | Riwayat bahaya | 60/min |
+| `GET` | `/devices/{id}/logs?limit=50` | History data sensor (max 100) | 60/min |
+| `GET` | `/devices/{id}/alerts?limit=50` | Riwayat bahaya (max 100) | 60/min |
 | `POST` | `/devices/{id}/control` | Remote control device | 30/min |
 | `POST` | `/devices/{id}/unclaim` | Lepas kepemilikan | 10/min |
 
@@ -250,10 +268,18 @@ Device harus mengirim data JSON ke topik: `devices/{MAC_ADDRESS}/data`
 ```json
 {
   "temp": 30.5,
-  "humidity": 75.0,
+  "humid": 75.0,
   "ammonia": 0.5    
 }
 ```
+
+> **Catatan:** Key humidity menggunakan `humid` (bukan `humidity`). Data akan divalidasi:
+> - Tipe data harus angka (float/int)
+> - Suhu: -40°C s/d 80°C
+> - Kelembapan: 0% s/d 100%
+> - Amonia: 0 s/d 500 ppm
+>
+> Data di luar batas akan ditolak dan tidak disimpan.
 
 ### Terima Perintah Kontrol (Subscribe)
 Device harus subscribe ke topik: `devices/{MAC_ADDRESS}/control`
@@ -261,10 +287,13 @@ Device harus subscribe ke topik: `devices/{MAC_ADDRESS}/control`
 **Format JSON yang diterima:**
 ```json
 {
-  "component": "fan",
-  "state": "ON"
+  "component": "kipas",
+  "state": true
 }
 ```
+
+> **Komponen valid:** `kipas`, `lampu`, `pompa`, `pakan_otomatis`  
+> **State:** `true` (ON) / `false` (OFF)
 
 ### Contoh Kode ESP32 (dengan Auth)
 ```cpp
@@ -294,7 +323,7 @@ void reconnect() {
 void sendSensorData(float temp, float humidity, float ammonia) {
   String topic = "devices/" + String(mac_address) + "/data";
   String payload = "{\"temp\":" + String(temp) + 
-                   ",\"humidity\":" + String(humidity) + 
+                   ",\"humid\":" + String(humidity) + 
                    ",\"ammonia\":" + String(ammonia) + "}";
   client.publish(topic.c_str(), payload.c_str());
 }
@@ -323,7 +352,7 @@ void sendSensorData(float temp, float humidity, float ammonia) {
 - Topic: `devices/AA:BB:CC:DD:EE:FF/data`
 - Payload:
 ```json
-{"temp": 32.5, "humidity": 65, "ammonia": 15}
+{"temp": 32.5, "humid": 65, "ammonia": 15}
 ```
 
 **3. Monitor Perintah Kontrol:**
@@ -340,6 +369,7 @@ void sendSensorData(float temp, float humidity, float ammonia) {
 | MQTT "Not authorized"? | Cek username/password di .env dan mosquitto config |
 | Data tidak masuk database? | Pastikan MAC Address sudah di-seed ke database |
 | Device selalu OFFLINE? | Device harus kirim data tiap 5 menit (heartbeat) |
+| Data sensor ditolak? | Cek format JSON (`temp`, `humid`, `ammonia`) dan batas fisik |
 | Rate limit exceeded? | Tunggu 1 menit atau kurangi frekuensi request |
 | CORS error di frontend? | Tambahkan origin frontend ke `CORS_ORIGINS` di .env |
 
@@ -373,14 +403,25 @@ Request ID juga tersedia di response header `X-Request-ID` — berguna jika fron
 
 ## 🚀 Deploy ke Production
 
+### Arsitektur Docker
+
+| Service | Container | Healthcheck | Catatan |
+|---------|-----------|-------------|---------|
+| PostgreSQL 15 | `pcb_pkl_postgres` | `pg_isready` | Port tidak di-expose ke host |
+| Mosquitto 2.x | `pcb_pkl_mosquitto` | `mosquitto_sub` | Hanya port 1883 (MQTT) |
+| Backend API | `pcb_pkl_backend` | HTTP `/` | Non-root user, 2 workers |
+| MQTT Worker | `pcb_pkl_mqtt_worker` | - | Auto-reconnect, depends on healthy services |
+
 ### Checklist Sebelum Deploy
 
 - [ ] Set `ENVIRONMENT=production` di `.env`
 - [ ] Ganti `SECRET_KEY` dengan random string 64 karakter
 - [ ] Update `BASE_URL` dengan domain production
 - [ ] Update `CORS_ORIGINS` dengan domain frontend
-- [ ] (Opsional) Setup MQTT Authentication
+- [ ] Set `ALERT_TEMP_MAX`, `ALERT_TEMP_MIN`, `ALERT_AMMONIA_MAX` sesuai kebutuhan
+- [ ] Setup MQTT Authentication (username/password)
 - [ ] (Opsional) Setup HTTPS dengan reverse proxy (nginx/traefik)
+- [ ] Verifikasi `.dockerignore` tidak meng-copy file sensitif ke image
 
 ---
 
@@ -402,27 +443,28 @@ tests/
 ```
 app/
 ├── __init__.py
-├── main.py            # FastAPI app, middleware (Request ID), lifespan
-├── database.py        # SQLAlchemy engine & session
-├── dependencies.py    # Auth dependency (get_current_user)
+├── main.py            # FastAPI app, middleware (Request ID), lifespan, global exception handler
+├── database.py        # SQLAlchemy engine & session (dengan rollback on error)
+├── dependencies.py    # Auth dependency (get_current_user, 401 handling)
 ├── core/
-│   ├── config.py          # Pydantic Settings (.env)
-│   ├── security.py        # JWT create & verify
+│   ├── config.py          # Pydantic Settings (.env) + alert thresholds
+│   ├── security.py        # JWT create & verify (timezone-aware)
 │   ├── logging_config.py  # Logging setup dengan Request ID filter
 │   └── request_context.py # ContextVars untuk Request ID tracing
 ├── models/
 │   ├── user.py            # Model User
-│   └── device.py          # Model Device & SensorLog
+│   └── device.py          # Model Device & SensorLog (indexed)
 ├── routers/
 │   ├── auth.py            # Google OAuth login/callback
 │   ├── user.py            # GET /users/me
-│   └── device.py          # CRUD devices, logs, alerts, control
+│   └── device.py          # CRUD devices, logs, alerts, control (IDOR protected)
 ├── schemas/
 │   ├── user.py            # Pydantic schemas User
-│   ├── device.py          # Pydantic schemas Device & Control
+│   ├── device.py          # Pydantic schemas Device & Control (validated)
 │   └── sensor.py          # Pydantic schemas Sensor
 └── mqtt/
-    └── mqtt_worker.py     # MQTT subscriber & data ingestion
+    ├── mqtt_worker.py     # MQTT subscriber & data ingestion (auto-reconnect)
+    └── publisher.py       # Persistent MQTT client untuk publish kontrol
 ```
 
 ### Cara Menjalankan Test
@@ -564,9 +606,13 @@ curl -X POST http://localhost:8000/devices/{device_id}/control \
 | Access protected endpoint tanpa prefix Bearer | Unauthorized | 401 |
 | Access protected endpoint dengan token expired | Unauthorized | 401 |
 | Claim device dengan MAC tidak terdaftar | Not Found | 404 |
+| Claim device dengan MAC format salah (bukan hex) | Validation Error | 422 |
 | Claim device yang sudah diklaim | Bad Request | 400 |
 | Claim device berhasil | Device data | 200 |
+| Claim device dengan nama > 100 karakter | Validation Error | 422 |
 | Get devices milik user | List devices | 200 |
+| Get alerts device milik orang lain | Not Found | 404 |
+| Control device dengan komponen invalid | Validation Error | 422 |
 | Control device milik sendiri | Success message | 200 |
 | Control device milik orang lain | Not Found | 404 |
 | Unclaim device berhasil | Success message | 200 |
