@@ -35,8 +35,10 @@ jobs:
             touch mosquitto/log/mosquitto.log
             touch mosquitto/config/passwd
             
-            # 2. Kembalikan hak milik folder ke Mosquitto (User ID 1883)
+            # 2. Kembalikan hak milik dan amankan file dari warning
             chown -R 1883:1883 mosquitto
+            chmod 0700 mosquitto/log/mosquitto.log
+            chmod 0700 mosquitto/config/passwd
             
             # 3. Suntikkan file .env dari brankas rahasia
             cat << 'EOF' > .env
