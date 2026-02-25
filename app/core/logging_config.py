@@ -39,14 +39,13 @@ def setup_logging():
     logger.addFilter(request_id_filter)
 
     # --- HANDLER 1: FILE (Rotating) ---
-    # File akan dipotong kalau ukurannya > 5MB, simpan 3 backup terakhir.
     file_handler = RotatingFileHandler(filepath, maxBytes=5*1024*1024, backupCount=3)
-    file_handler.setFormatter(logging.Formatter(LOG_FORMAT))
+    # Tambahkan defaults={"request_id": "SYSTEM"} agar tidak KeyError saat startup
+    file_handler.setFormatter(logging.Formatter(LOG_FORMAT, defaults={"request_id": "SYSTEM"}))
     logger.addHandler(file_handler)
 
     # --- HANDLER 2: CONSOLE (Terminal) ---
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(logging.Formatter(LOG_FORMAT))
-    logger.addHandler(console_handler)
-
+    # Tambahkan juga di sini
+    console_handler.setFormatter(logging.Formatter(LOG_FORMAT, defaults={"request_id": "SYSTEM"}))
     return logger
