@@ -30,11 +30,19 @@ jobs:
           script: |
             cd /opt/api-pcb
             
-            # Robot akan otomatis membuat ulang file .env dari brankas rahasia
+            # 1. Pastikan folder dan file Mosquitto tersedia
+            mkdir -p mosquitto/log mosquitto/data mosquitto/config
+            touch mosquitto/log/mosquitto.log
+            touch mosquitto/config/passwd
+            
+            # 2. Kembalikan hak milik folder ke Mosquitto (User ID 1883)
+            chown -R 1883:1883 mosquitto
+            
+            # 3. Suntikkan file .env dari brankas rahasia
             cat << 'EOF' > .env
             ${{ secrets.ENV_FILE }}
             EOF
             
-            # Menjalankan ulang backend
+            # 4. Restart Docker pakai mode Production (abaikan file override)
             docker compose -f docker-compose.yml down
             docker compose -f docker-compose.yml up -d --build
