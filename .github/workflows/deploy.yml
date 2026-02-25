@@ -30,21 +30,27 @@ jobs:
           script: |
             cd /opt/api-pcb
             
-            # 1. Pastikan folder dan file Mosquitto tersedia
+            # 1. Pastikan folder tersedia
             mkdir -p mosquitto/log mosquitto/data mosquitto/config
             touch mosquitto/log/mosquitto.log
-            touch mosquitto/config/passwd
             
-            # 2. Kembalikan hak milik dan amankan file dari warning
-            chown -R 1883:1883 mosquitto
-            chmod 0700 mosquitto/log/mosquitto.log
-            chmod 0700 mosquitto/config/passwd
-            
-            # 3. Suntikkan file .env dari brankas rahasia
+            # 2. Suntikkan file .env dari brankas rahasia
             cat << 'EOF' > .env
             ${{ secrets.ENV_FILE }}
             EOF
             
-            # 4. Restart Docker pakai mode Production (abaikan file override)
+            # 3. Ambil Username & Password dari file .env
+            M_USER=$(grep MQTT_USERNAME .env | cut -d '=' -f2)
+            M_PASS=$(grep MQTT_PASSWORD .env | cut -d '=' -f2)
+            
+            # 4. Generate file passwd beneran secara otomatis (-c untuk membuat baru)
+            docker run --rm -v /opt/api-pcb/mosquitto/config:/mosquitto/config eclipse-mosquitto mosquitto_passwd -c -b /mosquitto/config/passwd $M_USER $M_PASS
+            
+            # 5. Amankan file dan reset kepemilikan
+            chown -R 1883:1883 mosquitto
+            chmod 0700 mosquitto/log/mosquitto.log
+            chmod 0700 mosquitto/config/passwd
+            
+            # 6. Restart Docker pakai mode Production
             docker compose -f docker-compose.yml down
             docker compose -f docker-compose.yml up -d --build
