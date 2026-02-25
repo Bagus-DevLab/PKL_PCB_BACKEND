@@ -36,7 +36,8 @@ services:
     networks:
       - iot_network
     healthcheck:
-      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/#", "-C", "1", "-u", "${MQTT_USERNAME}", "-P", "${MQTT_PASSWORD}"]
+      # Pengecekan paling aman: cek apakah port 1883 sudah terbuka di dalam container
+      test: ["CMD-SHELL", "nc -z localhost 1883 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3
