@@ -29,5 +29,12 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd /opt/api-pcb
+            
+            # Robot akan otomatis membuat ulang file .env dari brankas rahasia
+            cat << 'EOF' > .env
+            ${{ secrets.ENV_FILE }}
+            EOF
+            
+            # Menjalankan ulang backend
             docker compose down
             docker compose up -d --build
