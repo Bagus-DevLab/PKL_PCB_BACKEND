@@ -32,5 +32,5 @@ async def read_current_user(
         "email": current_user.email,
         "full_name": current_user.full_name,
         "picture": current_user.picture,
-        "status": "Kamu berhasil masuk area rahasia! 🎉"
+        "status": "Kamu berhasil masuk area rahasia!"
     }
