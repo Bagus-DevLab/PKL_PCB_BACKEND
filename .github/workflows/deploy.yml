@@ -32,6 +32,7 @@ jobs:
             
             # 1. Pastikan folder tersedia
             mkdir -p mosquitto/log mosquitto/data mosquitto/config
+            chmod 777 logs
             touch mosquitto/log/mosquitto.log
             
             # 2. Suntikkan file .env dan HAPUS karakter siluman Windows (\r)
