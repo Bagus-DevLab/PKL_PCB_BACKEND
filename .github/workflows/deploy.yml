@@ -41,7 +41,7 @@ jobs:
             EOF
             
             # 3. Ambil Username & Password dari file .env yang sudah bersih
-            M_USER=$(grep MQTT_USER .env | cut -d '=' -f2)
+            M_USER=$(grep MQTT_USERNAME .env | cut -d '=' -f2)
             M_PASS=$(grep MQTT_PASSWORD .env | cut -d '=' -f2)
             
             # 4. Generate file passwd beneran
