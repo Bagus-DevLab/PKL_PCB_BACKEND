@@ -5,6 +5,24 @@ from uuid import UUID
 import re
 
 
+class DeviceRegister(BaseModel):
+    """Schema untuk admin mendaftarkan device baru ke sistem pabrik"""
+    mac_address: str
+
+    @field_validator("mac_address")
+    @classmethod
+    def validate_mac_address(cls, v: str) -> str:
+        """Sama persis dengan validasi claim, format akan jadi XX:XX:XX:XX:XX:XX"""
+        v = v.strip().upper()
+        if len(v) == 12 and ":" not in v:
+            v = ":".join(v[i:i+2] for i in range(0, 12, 2))
+            
+        pattern = r"^([0-9A-F]{2}:){5}[0-9A-F]{2}$"
+        if not re.match(pattern, v):
+            raise ValueError("Format MAC address tidak valid! Gunakan format XX:XX:XX:XX:XX:XX atau XXXXXXXXXXXX")
+        return v
+
+
 class DeviceClaim(BaseModel):
     """Schema untuk mengklaim device baru via QR scan"""
     mac_address: str

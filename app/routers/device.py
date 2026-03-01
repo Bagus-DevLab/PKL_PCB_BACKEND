@@ -9,7 +9,7 @@ from slowapi.util import get_remote_address
 from app.database import get_db
 from app.models.user import User
 from app.models.device import Device, SensorLog
-from app.schemas import DeviceClaim, DeviceResponse, LogResponse
+from app.schemas import DeviceClaim, DeviceResponse, LogResponse, DeviceRegister
 from app.dependencies import get_current_user, get_current_admin
 
 import json
@@ -28,6 +28,45 @@ router = APIRouter(
     prefix="/devices",
     tags=["Devices"]
 )
+
+# 0. FITUR REGISTER (KHUSUS ADMIN PABRIK)
+@router.post("/register", response_model=DeviceResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("20/minute")
+def register_device(
+    request: Request,
+    device_in: DeviceRegister, 
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_current_admin)
+):
+    """
+    Admin mendaftarkan MAC Address device buatan pabrik ke Database. 
+    Hanya device yang sudah terdaftar di sini yang bisa diklaim oleh User.
+    """
+    logger.info(f"Admin {admin_user.email} mendaftarkan device baru MAC: {device_in.mac_address}")
+    
+    # Cek apakah device sudah ada
+    existing_device = db.query(Device).filter(Device.mac_address == device_in.mac_address).first()
+    if existing_device:
+        logger.warning(f"Register GAGAL - MAC {device_in.mac_address} sudah terdaftar")
+        raise HTTPException(
+            status_code=400, 
+            detail="Perangkat dengan MAC Address tersebut sudah terdaftar di sistem!"
+        )
+
+    # Buat Device baru, user_id = Null (Belum diklaim)
+    new_device = Device(
+        mac_address=device_in.mac_address,
+        name=None,
+        user_id=None
+    )
+    
+    db.add(new_device)
+    db.commit()
+    db.refresh(new_device)
+    
+    logger.info(f"Register SUKSES - Device {new_device.mac_address} ditambahkan oleh {admin_user.email}")
+    return new_device
+
 
 # 1. FITUR KLAIM (Gantikan Create)
 @router.post("/claim", response_model=DeviceResponse)
