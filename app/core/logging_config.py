@@ -4,6 +4,7 @@ import os
 from logging.handlers import RotatingFileHandler
 from app.core.request_context import RequestIdFilter
 
+
 # 1. Konfigurasi Dasar
 LOG_DIR = "logs"
 LOG_FILENAME = "backend.log"
@@ -19,13 +20,7 @@ def setup_logging():
     Setiap log otomatis punya request_id untuk tracing.
     """
     
-    # Buat folder 'logs' kalau belum ada
-    if not os.path.exists(LOG_DIR):
-        os.makedirs(LOG_DIR)
-        
-    filepath = os.path.join(LOG_DIR, LOG_FILENAME)
-
-    # Ambil Root Logger
+    # --- INITIALIZE LOGGER ---
     logger = logging.getLogger()
     logger.setLevel(logging.INFO) # Level: DEBUG, INFO, WARNING, ERROR, CRITICAL
 
@@ -34,15 +29,24 @@ def setup_logging():
         logger.handlers.clear()
 
     # Tambahkan filter request_id ke root logger
-    # Ini otomatis inject request_id ke SEMUA log di seluruh app
     request_id_filter = RequestIdFilter()
     logger.addFilter(request_id_filter)
 
     # --- HANDLER 1: FILE (Rotating) ---
-    file_handler = RotatingFileHandler(filepath, maxBytes=5*1024*1024, backupCount=3)
-    # Tambahkan defaults={"request_id": "SYSTEM"} agar tidak KeyError saat startup
-    file_handler.setFormatter(logging.Formatter(LOG_FORMAT, defaults={"request_id": "SYSTEM"}))
-    logger.addHandler(file_handler)
+    filepath = os.path.join(LOG_DIR, LOG_FILENAME)
+    try:
+        # Buat folder 'logs' kalau belum ada (Coba buat lagi, kalau-kalau failed sebelumnya)
+        if not os.path.exists(LOG_DIR):
+            os.makedirs(LOG_DIR, exist_ok=True)
+            
+        file_handler = RotatingFileHandler(filepath, maxBytes=5*1024*1024, backupCount=3)
+        # Tambahkan defaults={"request_id": "SYSTEM"} agar tidak KeyError saat startup
+        file_handler.setFormatter(logging.Formatter(LOG_FORMAT, defaults={"request_id": "SYSTEM"}))
+        logger.addHandler(file_handler)
+    except PermissionError:
+        print(f"Warning: Permission denied to write to {filepath}. File logging is disabled. Falling back to console only.")
+    except Exception as e:
+        print(f"Warning: Failed to setup file logger: {e}")
 
     # --- HANDLER 2: CONSOLE (Terminal) ---
     console_handler = logging.StreamHandler(sys.stdout)

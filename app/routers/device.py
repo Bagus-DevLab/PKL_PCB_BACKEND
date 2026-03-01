@@ -10,7 +10,7 @@ from app.database import get_db
 from app.models.user import User
 from app.models.device import Device, SensorLog
 from app.schemas import DeviceClaim, DeviceResponse, LogResponse
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_current_admin
 
 import json
 import paho.mqtt.client as mqtt
@@ -82,6 +82,22 @@ def read_my_devices(
 ):
     devices = db.query(Device).filter(Device.user_id == current_user.id).all()
     logger.debug(f"User {current_user.email} mengambil list {len(devices)} device")
+    return devices
+
+# 2.5 BARU: LIHAT DEVICE YANG BELUM DIKLAIM (KHUSUS ADMIN)
+@router.get("/unclaimed", response_model=List[DeviceResponse])
+@limiter.limit("30/minute")
+def get_unclaimed_devices(
+    request: Request,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_current_admin)
+):
+    """
+    Mengambil daftar semua device yang belum diklaim (user_id = NULL).
+    KHUSUS ADMIN.
+    """
+    devices = db.query(Device).filter(Device.user_id == None).all()
+    logger.debug(f"Admin {admin_user.email} mengambil list {len(devices)} unclaimed device")
     return devices
 
 # 3. LIHAT DATA SENSOR (GRAFIK)

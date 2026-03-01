@@ -79,3 +79,22 @@ async def get_current_user(
     
     logger.debug(f"Auth SUKSES - User {user.email} terautentikasi")
     return user
+
+async def get_current_admin(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Dependency khusus admin.
+    Hanya user dengan email tertentu yang diizinkan mengakses.
+    """
+    # Daftar email admin (ideal-nya diambil dari Database atau .env)
+    ADMIN_EMAILS = ["bagusanardiansyah@gmail.com", "bagus@pcb.my.id"] # Ganti sesuai email lu
+    
+    if current_user.email not in ADMIN_EMAILS:
+        logger.warning(f"Akses Admin DITOLAK untuk {current_user.email}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Akses ditolak! Endpoint ini khusus Admin.",
+        )
+        
+    return current_user
