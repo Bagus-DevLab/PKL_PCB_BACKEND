@@ -13,11 +13,22 @@ class DeviceClaim(BaseModel):
     @field_validator("mac_address")
     @classmethod
     def validate_mac_address(cls, v: str) -> str:
-        """Validasi format MAC address (XX:XX:XX:XX:XX:XX)"""
-        pattern = r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$"
+        """
+        Validasi format MAC address. 
+        Menerima format dengan titik dua (XX:XX:XX:XX:XX:XX) 
+        atau tanpa titik dua sama sekali (XXXXXXXXXXXX).
+        Akan selalu dikembalikan dalam format dengan titik dua kapital.
+        """
+        v = v.strip().upper()
+        
+        # Jika tanpa titik dua, tambahkan titik dua (contoh: 441D64BE2208 -> 44:1D:64:BE:22:08)
+        if len(v) == 12 and ":" not in v:
+            v = ":".join(v[i:i+2] for i in range(0, 12, 2))
+            
+        pattern = r"^([0-9A-F]{2}:){5}[0-9A-F]{2}$"
         if not re.match(pattern, v):
-            raise ValueError("Format MAC address tidak valid! Gunakan format XX:XX:XX:XX:XX:XX")
-        return v.upper()
+            raise ValueError("Format MAC address tidak valid! Gunakan format XX:XX:XX:XX:XX:XX atau XXXXXXXXXXXX")
+        return v
 
     @field_validator("name")
     @classmethod
