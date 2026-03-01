@@ -1,5 +1,5 @@
 # Device schemas
-from .device import DeviceClaim, DeviceResponse, DeviceUpdate
+from .device import DeviceClaim, DeviceResponse, DeviceUpdate, DeviceRegister
 
 # User schemas
 from .user import UserBase, UserResponse, TokenResponse
@@ -12,6 +12,7 @@ __all__ = [
     "DeviceClaim",
     "DeviceResponse", 
     "DeviceUpdate",
+    "DeviceRegister",
     # User
     "UserBase",
     "UserResponse",
