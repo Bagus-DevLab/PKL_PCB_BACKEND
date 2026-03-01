@@ -63,7 +63,7 @@ class DeviceResponse(BaseModel):
     """Schema response data device"""
     id: UUID
     mac_address: str
-    name: str
+    name: Optional[str] = None
     user_id: Optional[UUID] = None
     last_heartbeat: Optional[datetime] = None
     
