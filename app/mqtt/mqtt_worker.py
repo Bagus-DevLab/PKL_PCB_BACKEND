@@ -71,13 +71,19 @@ def on_disconnect(client, userdata, rc):
 def on_message(client, userdata, msg):
     db = SessionLocal()
     try:
-        mac_address = msg.topic.split("/")[1]
+        raw_mac = msg.topic.split("/")[1]
+        
+        # Pengecekan dan format MAC Address (XX:XX:XX:XX:XX:XX)
+        mac_address = raw_mac.strip().upper()
+        if len(mac_address) == 12 and ":" not in mac_address:
+            mac_address = ":".join(mac_address[i:i+2] for i in range(0, 12, 2))
+            
         payload = json.loads(msg.payload.decode())
         
         device = db.query(Device).filter(Device.mac_address == mac_address).first()
         
         if not device:
-            logger.warning(f"Unknown MAC: {mac_address}")
+            logger.warning(f"Unknown MAC: {mac_address} (raw: {raw_mac})")
             return
         
         # Validasi payload sensor
