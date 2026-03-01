@@ -60,7 +60,11 @@ def publish_control(mac_address: str, component: str, state: bool) -> None:
         "state": "ON" if state else "OFF"
     }
     
-    mqtt_topic = f"devices/{mac_address}/control"
+    # Format MAC address untuk ESP32 (Hilangkan tanda baca titik dua :)
+    # '44:1D:64:BE:22:08' -> '441D64BE2208'
+    formatted_mac = mac_address.replace(":", "").upper()
+    
+    mqtt_topic = f"devices/{formatted_mac}/control"
     
     # Publish dengan QoS 1 agar lebih reliable
     result = client.publish(mqtt_topic, json.dumps(mqtt_payload), qos=1)
