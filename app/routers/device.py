@@ -18,6 +18,7 @@ from app.core.config import settings
 from app.schemas.device import DeviceControl
 from app.core.request_context import get_request_id
 from app.mqtt.publisher import publish_control
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -270,3 +271,52 @@ def unclaim_device(
 
     logger.info(f"Unclaim SUKSES - Device '{old_name}' (MAC: {old_mac}) dilepas oleh {current_user.email}")
     return {"status": "success", "message": "Device berhasil di-unclaim. Sekarang device bebas diklaim lagi."}
+
+@router.get("/{device_id}/status")
+@limiter.limit("60/minute")
+def get_device_status(
+    request: Request,
+    device_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Cek apakah device sedang Online atau Offline menggunakan kolom last_heartbeat.
+    """
+    # 1. Cari alatnya
+    device = db.query(Device).filter(Device.id == device_id, Device.user_id == current_user.id).first()
+    
+    if not device:
+        raise HTTPException(status_code=404, detail="Device tidak ditemukan atau akses ditolak")
+
+    # 2. Kalau alat belum pernah ngirim heartbeat sama sekali
+    if not device.last_heartbeat:
+        return {
+            "device_id": device_id, 
+            "is_online": False, 
+            "last_seen": None, 
+            "message": "Belum ada koneksi dari perangkat"
+        }
+
+    # 3. Hitung selisih waktu sekarang dengan last_heartbeat
+    # Pastikan pakai UTC agar tidak bentrok zona waktu server vs lokal
+    now = datetime.now(timezone.utc)
+    
+    # Kalau last_heartbeat dari DB nggak punya info timezone (naive), kita ubah jadi UTC
+    if device.last_heartbeat.tzinfo is None:
+        last_heartbeat_aware = device.last_heartbeat.replace(tzinfo=timezone.utc)
+    else:
+        last_heartbeat_aware = device.last_heartbeat
+
+    time_diff = now - last_heartbeat_aware
+    seconds_since_last_seen = time_diff.total_seconds()
+
+    # 4. Tentukan Online/Offline (Toleransi 2 menit / 120 detik)
+    is_online = seconds_since_last_seen <= 120
+
+    return {
+        "device_id": device_id,
+        "is_online": is_online,
+        "last_seen": last_heartbeat_aware,
+        "seconds_since_last_seen": round(seconds_since_last_seen)
+    }
