@@ -34,21 +34,21 @@ SENSOR_AMMONIA_MAX = 500.0
 def validate_sensor_data(payload: dict) -> dict | None:
     """
     Validasi payload sensor data dari MQTT.
-    Return data yang sudah di-sanitize, atau None jika tidak valid.
     """
     try:
-        temp = float(payload.get("temp", 0))
-        humidity = float(payload.get("humid", 0))
+        # SEKARANG SUDAH SAMA DENGAN ESP32: "temperature", "humidity", "ammonia"
+        temp = float(payload.get("temperature", 0)) 
+        humidity = float(payload.get("humidity", 0))
         ammonia = float(payload.get("ammonia", 0))
     except (TypeError, ValueError):
         return None
     
-    # Cek batas wajar sensor
-    if not (SENSOR_TEMP_MIN <= temp <= SENSOR_TEMP_MAX):
+    # Cek batas wajar sensor (Abaikan kalau nilainya pas 0 karena itu default kalau error)
+    if temp != 0 and not (SENSOR_TEMP_MIN <= temp <= SENSOR_TEMP_MAX):
         return None
-    if not (SENSOR_HUMID_MIN <= humidity <= SENSOR_HUMID_MAX):
+    if humidity != 0 and not (SENSOR_HUMID_MIN <= humidity <= SENSOR_HUMID_MAX):
         return None
-    if not (SENSOR_AMMONIA_MIN <= ammonia <= SENSOR_AMMONIA_MAX):
+    if ammonia != 0 and not (SENSOR_AMMONIA_MIN <= ammonia <= SENSOR_AMMONIA_MAX):
         return None
     
     return {"temp": temp, "humidity": humidity, "ammonia": ammonia}
@@ -100,16 +100,20 @@ def on_message(client, userdata, msg):
         is_alert = False
         alert_msg = ""
 
-        if temp > ALERT_TEMP_MAX:
-            is_alert = True
-            alert_msg += "Suhu Terlalu Panas! "
-        elif temp < ALERT_TEMP_MIN:
-            is_alert = True
-            alert_msg += "Suhu Terlalu Dingin! "
+        # Hanya cek alert kalau suhunya valid (Bukan 0 dari hasil fallback)
+        if temp > 0:
+            if temp > ALERT_TEMP_MAX:
+                is_alert = True
+                alert_msg += "Suhu Terlalu Panas! "
+            elif temp < ALERT_TEMP_MIN:
+                is_alert = True
+                alert_msg += "Suhu Terlalu Dingin! "
 
         if ammonia > ALERT_AMMONIA_MAX:
             is_alert = True
             alert_msg += "Kadar Amonia Berbahaya! "
+            
+        alert_msg = alert_msg.strip() # Hilangkan spasi lebih di ujung
 
         # Update heartbeat + Simpan log dalam SATU ATOMIC COMMIT
         device.last_heartbeat = func.now()
