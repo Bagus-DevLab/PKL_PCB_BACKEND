@@ -31,7 +31,7 @@ sso = GoogleSSO(
     allow_insecure_http=not settings.is_production  # False di production!
 )
 
-@router.get("/google/login")
+@router.post("/google/login")
 @limiter.limit("10/minute")
 async def google_login(request: Request):
     """Mengarahkan user ke halaman login Google"""

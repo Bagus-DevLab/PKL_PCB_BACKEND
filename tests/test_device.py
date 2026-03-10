@@ -24,7 +24,7 @@ class TestClaimDevice:
         data = response.json()
         assert data["mac_address"] == test_device_unclaimed.mac_address
         assert data["name"] == "Kandang Baru Saya"
-        assert data["user_id"] is not None
+        assert data["user_id"] is not Nonex 
     
     def test_claim_device_not_found(self, client, auth_headers):
         """Test klaim device dengan MAC address tidak terdaftar"""
