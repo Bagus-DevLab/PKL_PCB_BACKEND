@@ -52,6 +52,7 @@ services:
       - .env
     volumes:
       - ./logs:/app/logs  # Mount folder logs agar tersimpan di host
+      - ./firebase-adminsdk.json:/app/firebase-adminsdk.json
     networks:
       - iot_network
     # Production: gunakan workers, tanpa --reload

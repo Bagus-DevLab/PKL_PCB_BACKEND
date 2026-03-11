@@ -24,6 +24,7 @@ email-validator==2.1.1
 # =========================
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+firebase-admin==6.5.0      # <--- INI TAMBAHANNYA BRO
 
 # =========================
 # MQTT

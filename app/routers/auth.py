@@ -1,13 +1,14 @@
 import logging
+import os
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-# Import library resmi Google untuk verifikasi token
-from google.oauth2 import id_token
-from google.auth.transport import requests
+# Import library Firebase Admin
+import firebase_admin
+from firebase_admin import credentials, auth
 
 from app.database import get_db
 from app.models.user import User
@@ -21,51 +22,55 @@ limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
-# --- KONFIGURASI ---
-# Kita hanya butuh CLIENT ID Backend (Web) untuk memverifikasi token dari Flutter
-if not settings.GOOGLE_CLIENT_ID:
-    raise RuntimeError("FATAL: GOOGLE_CLIENT_ID belum di-set di .env!")
+# --- KONFIGURASI FIREBASE ---
+# Pastikan lu udah naruh file JSON dari Firebase di root folder backend lu
+# Kasih if check biar gak bentrok kalau FastAPI di-reload (Hot Reload)
+FIREBASE_CREDENTIALS_FILE = "firebase-adminsdk.json"
+
+if not firebase_admin._apps:
+    if not os.path.exists(FIREBASE_CREDENTIALS_FILE):
+        raise RuntimeError(f"FATAL: File {FIREBASE_CREDENTIALS_FILE} tidak ditemukan! Download dari Firebase Console.")
+    
+    cred = credentials.Certificate(FIREBASE_CREDENTIALS_FILE)
+    firebase_admin.initialize_app(cred)
+
 
 # Buat model Pydantic untuk menangkap JSON body dari Flutter
-class GoogleLoginRequest(BaseModel):
+class FirebaseLoginRequest(BaseModel):
     id_token: str
 
-@router.post("/google/login")
+# Endpoint kita ganti namanya biar rapi
+@router.post("/firebase/login")
 @limiter.limit("10/minute")
-async def google_login(request: Request, data: GoogleLoginRequest, db: Session = Depends(get_db)):
-    """Menerima id_token dari Flutter, memverifikasi ke Google, dan membuat sesi lokal"""
-    logger.info("Memulai verifikasi token Google dari mobile app...")
+async def firebase_login(request: Request, data: FirebaseLoginRequest, db: Session = Depends(get_db)):
+    """Menerima id_token dari Flutter (Firebase), memverifikasi, dan membuat sesi lokal"""
+    logger.info("Memulai verifikasi token Firebase dari mobile app...")
     
     try:
-        # 1. Verifikasi token ke server Google
-        # Pastikan settings.GOOGLE_CLIENT_ID adalah Web Client ID kamu
-        idinfo = id_token.verify_oauth2_token(
-            data.id_token, 
-            requests.Request(), 
-            settings.GOOGLE_CLIENT_ID,
-            clock_skew_in_seconds=10 # Toleransi delay waktu antar server
-        )
+        # 1. Verifikasi token ke server Firebase
+        decoded_token = auth.verify_id_token(data.id_token)
 
-        email = idinfo.get('email')
-        full_name = idinfo.get('name', '')
-        picture = idinfo.get('picture', '')
+        email = decoded_token.get('email')
+        full_name = decoded_token.get('name', '')
+        picture = decoded_token.get('picture', '')
+        # firebase_uid = decoded_token.get('uid') # Bisa lu simpen ke DB kalau butuh
 
         if not email:
-            raise ValueError("Email tidak ditemukan dalam payload token Google.")
+            raise ValueError("Email tidak ditemukan dalam payload token Firebase.")
 
         logger.info(f"Token valid untuk email: {email}")
 
-        # 2. Cek User di DB (Logika aslimu)
+        # 2. Cek User di DB PostgreSQL lu
         user_db = db.query(User).filter(User.email == email).first()
         
         if not user_db:
             # Logic register user baru
-            logger.info(f"User baru terdaftar via Google: {email}")
+            logger.info(f"User baru terdaftar via Firebase: {email}")
             new_user = User(
                 email=email, 
                 full_name=full_name, 
                 picture=picture, 
-                provider="google"
+                provider="firebase" # Ubah providernya biar ketahuan
             )
             db.add(new_user)
             db.commit()
@@ -74,7 +79,7 @@ async def google_login(request: Request, data: GoogleLoginRequest, db: Session =
         else:
             logger.info(f"User existing login: {email}")
         
-        # 3. Buat Access Token (JWT)
+        # 3. Buat Access Token (JWT Lokal punya lu)
         access_token = create_access_token(
             data={"sub": str(user_db.id), "email": user_db.email}
         )
@@ -92,13 +97,14 @@ async def google_login(request: Request, data: GoogleLoginRequest, db: Session =
             }
         }
 
-    except ValueError as e:
-        # Menangkap error jika token dari Flutter palsu atau expired
-        logger.error(f"Google Token Invalid: {str(e)}")
-        raise HTTPException(status_code=401, detail="Token Google tidak valid atau sudah kedaluwarsa.")
+    except auth.InvalidIdTokenError as e:
+        logger.error(f"Firebase Token Invalid: {str(e)}")
+        raise HTTPException(status_code=401, detail="Token Firebase tidak valid.")
+        
+    except auth.ExpiredIdTokenError as e:
+        logger.error(f"Firebase Token Expired: {str(e)}")
+        raise HTTPException(status_code=401, detail="Token Firebase sudah kedaluwarsa.")
         
     except Exception as e:
         logger.error(f"Login GAGAL: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Terjadi kesalahan internal server saat login.")
-
-# NOTE: Endpoint /google/callback DIHAPUS karena Flutter tidak butuh callback web.

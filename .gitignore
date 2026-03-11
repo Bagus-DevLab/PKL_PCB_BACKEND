@@ -20,6 +20,13 @@ env/
 !.env.example
 
 # ==============================
+# Firebase / GCP Credentials (SANGAT PENTING!)
+# ==============================
+firebase-adminsdk.json
+*-firebase-adminsdk-*.json
+google-credentials.json
+
+# ==============================
 # Logs
 # ==============================
 *.log
