@@ -9,10 +9,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    # Port TIDAK di-expose ke host di production (akses hanya via iot_network)
-    # Uncomment baris di bawah jika butuh akses langsung saat development
-    # ports:
-    #   - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -28,7 +24,7 @@ services:
     container_name: pcb_pkl_mosquitto
     restart: always
     ports:
-      - "1883:1883"
+      - "1883:1883" # Tetap dibuka untuk alat fisik IoT, pastikan wajibkan auth di mosquitto.conf!
     volumes:
       - ./mosquitto/config:/mosquitto/config
       - ./mosquitto/data:/mosquitto/data
@@ -36,7 +32,6 @@ services:
     networks:
       - iot_network
     healthcheck:
-      # Pengecekan paling aman: cek apakah port 1883 sudah terbuka di dalam container
       test: ["CMD-SHELL", "nc -z localhost 1883 || exit 1"]
       interval: 10s
       timeout: 5s
@@ -47,16 +42,15 @@ services:
     container_name: pcb_pkl_backend
     restart: always
     ports:
-      - "8001:8000"
+      # KUNCI KEAMANAN: Bind ke 127.0.0.1 agar tidak tembus ke publik
+      - "127.0.0.1:8001:8000"
     env_file:
       - .env
     volumes:
-      - ./logs:/app/logs  # Mount folder logs agar tersimpan di host
+      - ./logs:/app/logs
       - ./firebase-adminsdk.json:/app/firebase-adminsdk.json
     networks:
       - iot_network
-    # Production: gunakan workers, tanpa --reload
-    # Development: override dengan docker-compose.override.yml
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
     healthcheck:
       test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/\")' || exit 1"]
@@ -71,10 +65,9 @@ services:
         condition: service_healthy
 
   mqtt_worker:
-    build: .  # Kita pakai image yang sama dengan backend (ada python & library-nya)
+    build: .
     container_name: pcb_pkl_mqtt_worker
     restart: always
-    # Pastikan path file-nya benar. Tadi kita buat di app/mqtt_worker.py
     command: python app/mqtt/mqtt_worker.py
     environment:
       - PYTHONPATH=/app

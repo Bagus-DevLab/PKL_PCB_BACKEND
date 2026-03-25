@@ -17,9 +17,9 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements dulu (biar layer caching optimal)
 COPY requirements.txt .
 
-# Install dependency Python
-RUN pip install --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt
+# Tambahin --default-timeout=100 biar dia lebih sabar nunggu koneksi
+RUN pip install --default-timeout=100 --upgrade pip
+RUN pip install --default-timeout=100 --no-cache-dir -r requirements.txt
 
 # Buat user non-root untuk keamanan
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
