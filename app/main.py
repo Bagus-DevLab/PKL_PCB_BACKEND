@@ -1,5 +1,6 @@
 import logging
 from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -12,48 +13,64 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.database import Base, engine, get_db
 from app.routers import auth_router, user_router, device_router
-from app.models import User, Device, SensorLog
 from app.core.logging_config import setup_logging
 from app.core.config import settings
-from app.core.request_context import request_id_var, generate_request_id, get_request_id
+from app.core.request_context import request_id_var, generate_request_id
 
-# Setup logging
+# ==========================================
+# 1. SETUP LOGGING & RATE LIMITER
+# ==========================================
 setup_logging()
 logger = logging.getLogger(__name__)
-
-# Rate Limiter
 limiter = Limiter(key_func=get_remote_address)
 
+# ==========================================
+# 2. LIFESPAN (STARTUP & SHUTDOWN)
+# ==========================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifecycle manager for startup and shutdown events"""
-    # Startup
     logger.info("=" * 50)
     logger.info("PKL PCB IoT Backend Starting...")
     logger.info("=" * 50)
+    
+    # Verifikasi Database
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created/verified")
-    logger.info(f"API Docs available at: /docs")
-    logger.info(f"Environment: {'PRODUCTION' if settings.ENVIRONMENT == 'production' else 'DEVELOPMENT'}")
+    
+    # Cek Environment & Logging Docs
+    if settings.ENVIRONMENT == "production":
+        logger.info("Environment: PRODUCTION (API Docs DISABLED)")
+    else:
+        logger.info("Environment: DEVELOPMENT")
+        logger.info("API Docs available at: /docs")
+        
     logger.info("Server ready to accept connections")
     
     yield  # Server berjalan
     
-    # Shutdown
     logger.info("Server shutting down...")
 
+# ==========================================
+# 3. APP INITIALIZATION
+# ==========================================
 app = FastAPI(
     title="PKL PCB API",
     description="API untuk monitoring kandang ayam berbasis IoT",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    # Keamanan: Matikan URL dokumentasi jika di Production
+    docs_url=None if settings.ENVIRONMENT == "production" else "/docs",
+    redoc_url=None if settings.ENVIRONMENT == "production" else "/redoc",
+    openapi_url=None if settings.ENVIRONMENT == "production" else "/openapi.json"
 )
 
-# Rate Limiter State
+# ==========================================
+# 4. EXCEPTION HANDLERS
+# ==========================================
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# --- Global Exception Handler ---
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Tangkap semua unhandled exception agar detail internal tidak bocor ke client"""
@@ -63,31 +80,27 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": "Terjadi kesalahan internal. Silakan coba lagi."}
     )
 
-# --- MIDDLEWARE: Request ID ---
+# ==========================================
+# 5. MIDDLEWARE
+# ==========================================
 class RequestIdMiddleware(BaseHTTPMiddleware):
-    """
-    Middleware yang generate request_id unik untuk setiap request.
-    Request ID ditambahkan ke response header 'X-Request-ID' juga.
-    """
+    """Generate request_id unik untuk tracing setiap request."""
     async def dispatch(self, request: Request, call_next):
-        # Generate ID unik untuk request ini
         rid = generate_request_id()
-        # Simpan ke contextvars (bisa diakses dari mana saja)
         request_id_var.set(rid)
         
         logger.info(f"{request.method} {request.url.path}")
-        
         response = await call_next(request)
-        
-        # Tambahkan ke response header (berguna untuk debugging frontend)
         response.headers["X-Request-ID"] = rid
-        
         logger.info(f"{request.method} {request.url.path} -> {response.status_code}")
+        
         return response
 
+# Catatan: FastAPI/Starlette mengeksekusi middleware dari yang paling terakhir ditambahkan.
+# Kita tambahkan Request ID lebih dulu...
 app.add_middleware(RequestIdMiddleware)
 
-# CORS Middleware
+# ...lalu CORS ditambahkan terakhir, agar dieksekusi PERTAMA KALI saat request masuk.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -96,7 +109,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include Routers
+# ==========================================
+# 6. ROUTERS & ENDPOINTS
+# ==========================================
 app.include_router(auth_router)
 app.include_router(user_router)
 app.include_router(device_router)
@@ -115,4 +130,3 @@ def health_check(request: Request, db: Session = Depends(get_db)):
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={"status": "unhealthy", "database_alive": False}
         )
-
