@@ -16,21 +16,17 @@ router = APIRouter(
     tags=["Users"]
 )
 
-@router.get("/me")
-@limiter.limit("30/minute")
-async def read_current_user(
-    request: Request,
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Endpoint ini TERKUNCI.
-    Cuma bisa dibuka kalau bawa Token JWT yang valid.
-    """
-    logger.debug(f"User {current_user.email} mengakses profile")
-    return {
-        "id": str(current_user.id),
-        "email": current_user.email,
-        "full_name": current_user.full_name,
-        "picture": current_user.picture,
-        "status": "Kamu berhasil masuk area rahasia!"
-    }
+# 1. Endpoint Update Nama
+@router.patch("/me", response_model=UserResponse)
+def update_user_me(full_name: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    current_user.full_name = full_name
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+# 2. Endpoint Hapus Akun
+@router.delete("/me")
+def delete_user_me(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    db.delete(current_user)
+    db.commit()
+    return {"message": "Akun berhasil dihapus dari database lokal"}
