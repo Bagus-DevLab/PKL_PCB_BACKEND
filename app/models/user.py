@@ -10,17 +10,12 @@ class User(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String, unique=True, index=True, nullable=False)
-    full_name = Column(String, nullable=False)
     
-    # Boleh kosong (nullable=True) karena user Google tidak punya password
-    hashed_password = Column(String, nullable=True) 
-    
-    # Boleh kosong karena user lokal (register manual) mungkin tidak upload foto
+    # Bikin nullable=True karena user yang daftar via Email/Pass Firebase 
+    # kadang nggak langsung punya nama sampai di-set manual.
+    full_name = Column(String, nullable=True) 
     picture = Column(String, nullable=True)
-    
-    # Penanda metode login ("local" untuk email/pass, "google" untuk OAuth)
-    provider = Column(String, default="local") 
-    
+    provider = Column(String, default="firebase") 
     is_active = Column(Boolean, default=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())

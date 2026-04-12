@@ -24,7 +24,6 @@ email-validator==2.1.1
 # =========================
 python-jose[cryptography]==3.3.0
 passlib==1.7.4             # <--- Hilangkan [bcrypt]-nya
-bcrypt==3.2.2              # <--- Tambahkan baris ini (WAJIB)
 firebase-admin==6.5.0
 
 # =========================

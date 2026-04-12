@@ -1,23 +1,19 @@
 import logging
 import os
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-# Import library Firebase Admin
 import firebase_admin
 from firebase_admin import credentials, auth
 
 from app.database import get_db
 from app.models.user import User
-from app.schemas.user import UserCreate
 from app.core.config import settings
-# Sesuaikan import dari security.py yang baru kita buat
-from app.core.security import create_access_token, get_password_hash, verify_password
+from app.core.security import create_access_token
 
 logger = logging.getLogger(__name__)
 
@@ -39,123 +35,45 @@ if not firebase_admin._apps:
 class FirebaseLoginRequest(BaseModel):
     id_token: str
 
-# ==========================================
-# 1. ENDPOINT REGISTRASI MANUAL
-# ==========================================
-@router.post("/register", status_code=status.HTTP_201_CREATED)
-def register_user(user: UserCreate, db: Session = Depends(get_db)):
-    """Mendaftar user baru menggunakan Email dan Password"""
-    # Cek apakah email sudah terdaftar (baik via Firebase atau Lokal)
-    db_user = db.query(User).filter(User.email == user.email).first()
-    if db_user:
-        raise HTTPException(status_code=400, detail="Email sudah terdaftar. Silakan login.")
-    
-    # Hash password
-    hashed_password = get_password_hash(user.password)
-    
-    # Simpan user baru dengan provider "local"
-    new_user = User(
-        email=user.email,
-        full_name=user.full_name,
-        hashed_password=hashed_password,
-        provider="local" 
-    )
-    
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    
-    return {"message": "Registrasi berhasil, silakan login", "user_id": str(new_user.id)}
-
-# ==========================================
-# 2. ENDPOINT LOGIN MANUAL
-# ==========================================
-@router.post("/login")
-@limiter.limit("10/minute")
-def login_local(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    """Login menggunakan Email dan Password"""
-    # Form data bawaan Swagger menganggap email sebagai 'username'
-    user = db.query(User).filter(User.email == form_data.username).first()
-    
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email atau password salah")
-        
-    # Cegah user Firebase login pakai form ini jika dia belum set password
-    if user.provider == "firebase" and not user.hashed_password:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail="Akun ini terdaftar menggunakan Google. Silakan gunakan tombol Login with Google."
-        )
-    
-    if not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email atau password salah")
-    
-    # Buat JWT Token
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": str(user.id), "email": user.email}, 
-        expires_delta=access_token_expires
-    )
-    
-    return {
-        "access_token": access_token, 
-        "token_type": "bearer",
-        "user_info": {
-            "email": user.email,
-            "full_name": user.full_name,
-            "picture": user.picture
-        }
-    }
-
-# ==========================================
-# 3. ENDPOINT LOGIN FIREBASE (GOOGLE OAUTH)
-# ==========================================
 @router.post("/firebase/login")
 @limiter.limit("10/minute")
 async def firebase_login(request: Request, data: FirebaseLoginRequest, db: Session = Depends(get_db)):
-    """Menerima id_token dari Flutter (Firebase), memverifikasi, dan membuat sesi lokal"""
-    logger.info("Memulai verifikasi token Firebase dari mobile app...")
-    
+    """Menerima id_token dari Flutter (Firebase), memverifikasi, dan membuat/melanjutkan sesi lokal"""
     try:
-        # Verifikasi token ke server Firebase
+        # 1. Verifikasi token ke server Firebase
         decoded_token = auth.verify_id_token(data.id_token)
 
         email = decoded_token.get('email')
-        full_name = decoded_token.get('name', '')
+        # Ambil nama dari Firebase, kalau kosong pakai nama depan dari email
+        full_name = decoded_token.get('name') or email.split('@')[0]
         picture = decoded_token.get('picture', '')
 
         if not email:
             raise ValueError("Email tidak ditemukan dalam payload token Firebase.")
 
-        logger.info(f"Token valid untuk email: {email}")
-
-        # Cek User di DB
+        # 2. Cek User di DB PostgreSQL kita
         user_db = db.query(User).filter(User.email == email).first()
         
+        # 3. Kalau belum ada (User Baru Register di Flutter), kita otomatis simpan ke DB
         if not user_db:
             logger.info(f"User baru terdaftar via Firebase: {email}")
             new_user = User(
                 email=email, 
                 full_name=full_name, 
                 picture=picture, 
-                provider="firebase",
-                hashed_password=None # Pastikan kosong karena login via Google
+                provider="firebase"
             )
             db.add(new_user)
             db.commit()
             db.refresh(new_user)
             user_db = new_user
-        else:
-            logger.info(f"User existing login: {email}")
         
-        # Buat Access Token (JWT Lokal)
+        # 4. Buat Access Token (JWT Lokal)
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
             data={"sub": str(user_db.id), "email": user_db.email},
             expires_delta=access_token_expires
         )
-        
-        logger.info(f"Login SUKSES - Token JWT dibuat untuk {user_db.email}")
         
         return {
             "access_token": access_token,
@@ -167,14 +85,10 @@ async def firebase_login(request: Request, data: FirebaseLoginRequest, db: Sessi
             }
         }
 
-    except auth.InvalidIdTokenError as e:
-        logger.error(f"Firebase Token Invalid: {str(e)}")
+    except auth.InvalidIdTokenError:
         raise HTTPException(status_code=401, detail="Token Firebase tidak valid.")
-        
-    except auth.ExpiredIdTokenError as e:
-        logger.error(f"Firebase Token Expired: {str(e)}")
+    except auth.ExpiredIdTokenError:
         raise HTTPException(status_code=401, detail="Token Firebase sudah kedaluwarsa.")
-        
     except Exception as e:
-        logger.error(f"Login GAGAL: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Terjadi kesalahan internal server saat login.")
+        logger.error(f"Login GAGAL: {str(e)}")
+        raise HTTPException(status_code=500, detail="Terjadi kesalahan internal server.")
