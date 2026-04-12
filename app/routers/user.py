@@ -19,6 +19,11 @@ router = APIRouter(
     prefix="/users", 
     tags=["Users"]
 )
+# 0. Endpoint Ambil Data Profil (Yang Kelupaan)
+@router.get("/me", response_model=UserResponse)
+def read_user_me(current_user: User = Depends(get_current_user)):
+    """Mengambil data profil user yang sedang login"""
+    return current_user
 
 # 1. Endpoint Update Nama
 # Pakai query parameter ?full_name=...
