@@ -5,6 +5,7 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791?style=for-the-badge&logo=postgresql)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker)
 ![MQTT](https://img.shields.io/badge/MQTT-Mosquitto-3C5280?style=for-the-badge&logo=eclipse-mosquitto)
+![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)
 
 Backend server untuk sistem monitoring dan controlling kandang ayam berbasis IoT. Project ini dibuat untuk keperluan **PKL / Skripsi**. Menggunakan arsitektur **Microservices** sederhana dengan Docker.
 
@@ -12,15 +13,13 @@ Backend server untuk sistem monitoring dan controlling kandang ayam berbasis IoT
 
 ## 🚀 Fitur Utama
 
-### 1. 🔐 Keamanan & Autentikasi
-- **Google OAuth Login:** Login menggunakan akun Google.
-- **JWT Protection:** Semua endpoint diamankan dengan Token JWT.
-- **Rate Limiting:** Proteksi terhadap DDoS dan brute force attack.
+### 1. 🔐 Keamanan & Autentikasi (Hybrid Firebase)
+- **Firebase Auth (IdP):** Memanfaatkan Firebase sebagai *Identity Provider* untuk Registrasi, Login Google, Login Email/Password, Verifikasi Email, dan Lupa Password di sisi klien (Flutter).
+- **JWT Protection Lokal:** Backend menerjemahkan Firebase Token menjadi Token JWT lokal (`access_token`) untuk mengamankan semua endpoint.
+- **Manajemen Akun Mandiri:** Fitur ambil profil, ubah nama pengguna, dan hapus akun permanen langsung ke database PostgreSQL.
+- **Rate Limiting:** Proteksi terhadap DDoS dan brute force attack (menggunakan `slowapi`).
 - **CORS Middleware:** Kontrol akses dari frontend berbeda domain.
-- **Input Validation:** MAC address, nama device, dan komponen divalidasi ketat.
-- **Non-root Docker:** Container berjalan sebagai user non-root (`appuser`).
-- **Error Masking:** Detail error internal tidak bocor ke client (global exception handler).
-- **IDOR Protection:** User hanya bisa akses data device miliknya sendiri.
+- **IDOR Protection:** User hanya bisa mengakses dan mengontrol perangkat kandang miliknya sendiri.
 
 ### 2. 🏭 Manajemen Device (Whitelist System)
 - **Factory Registration:** Device harus didaftarkan dulu oleh "Pabrik" di database (Pre-seeding).
@@ -28,39 +27,29 @@ Backend server untuk sistem monitoring dan controlling kandang ayam berbasis IoT
 - **Anti-Fake Device:** Mencegah user mendaftarkan MAC Address sembarangan.
 - **MAC Validation:** Format MAC address divalidasi dengan regex (`XX:XX:XX:XX:XX:XX`, hex only) dan di-uppercase otomatis.
 - **Nama Validasi:** Nama device wajib 1-100 karakter, auto-trimmed.
-- **Unclaim:** Fitur untuk melepas kepemilikan device (Reset ke pengaturan pabrik).
+- **Unclaim:** Fitur untuk melepas kepemilikan device dari akun user.
 
 ### 3. 📡 Real-time Monitoring & Alerting
 - **MQTT Ingestion:** Menerima data sensor (Suhu, Kelembapan, Amonia) secara real-time via Mosquitto (QoS 1).
 - **MQTT Authentication:** Mendukung username/password untuk keamanan broker.
 - **Sensor Validation:** Payload divalidasi tipe data dan batas fisik sebelum disimpan.
 - **Smart Alerting:** Mendeteksi bahaya otomatis dan menyimpan flag `is_alert` (threshold configurable via `.env`).
-    - 🚨 *Suhu > 35°C* (Panas) — `ALERT_TEMP_MAX`
-    - ❄️ *Suhu < 20°C* (Dingin) — `ALERT_TEMP_MIN`
-    - ☠️ *Amonia > 20 ppm* (Beracun) — `ALERT_AMMONIA_MAX`
-- **Heartbeat Monitor:** Mendeteksi status **ONLINE/OFFLINE** device berdasarkan waktu kirim data terakhir (Threshold: 5 menit).
-- **Auto-Reconnect:** MQTT Worker otomatis reconnect dengan exponential backoff (1-30 detik).
+  - 🚨 *Suhu > 35°C* (Panas) — `ALERT_TEMP_MAX`
+  - ❄️ *Suhu < 20°C* (Dingin) — `ALERT_TEMP_MIN`
+  - ☠️ *Amonia > 20 ppm* (Beracun) — `ALERT_AMMONIA_MAX`
+- **Heartbeat Monitor:** Mendeteksi status **ONLINE/OFFLINE** device (Threshold: 5 menit).
+- **Auto-Reconnect:** MQTT Worker otomatis reconnect dengan exponential backoff.
 - **Atomic Commit:** Update heartbeat dan simpan log sensor dalam satu transaksi database.
 
 ### 4. 🎮 Remote Control (2-Arah)
 - Mengontrol perangkat keras dari aplikasi via API.
 - Komponen yang didukung: `kipas`, `lampu`, `pompa`, `pakan_otomatis` (enum validation).
 - Backend meneruskan perintah ke Device melalui topik MQTT.
-- **Persistent MQTT Publisher:** Menggunakan singleton client (tidak membuat koneksi baru tiap request).
+- **Persistent MQTT Publisher:** Menggunakan singleton client untuk kecepatan publish.
 
 ### 5. 📊 Logging & Monitoring
-- **Request ID Tracing:** Setiap request masuk mendapat ID unik 8 karakter (`X-Request-ID`) yang muncul di semua log terkait, memudahkan tracing end-to-end.
+- **Request ID Tracing:** Setiap request masuk mendapat ID unik (`X-Request-ID`) yang muncul di semua log terkait, memudahkan tracing end-to-end.
 - **Rotating Log Files:** Log tersimpan di `logs/backend.log` dengan rotasi otomatis.
-- **Structured Logging:** Format log yang konsisten dengan request ID untuk debugging.
-- **Health Check:** Endpoint `/` untuk monitoring status server dan database.
-- **Response Header:** Setiap response HTTP menyertakan header `X-Request-ID` untuk korelasi log dari sisi frontend.
-
-**Contoh Output Log:**
-```
-2026-02-17 12:30:00,123 - INFO - [app.main] - [a3f1b92c] - POST /devices/claim
-2026-02-17 12:30:00,125 - INFO - [app.routers.device] - [a3f1b92c] - User test@email.com mencoba klaim device
-2026-02-17 12:30:00,130 - INFO - [app.main] - [a3f1b92c] - POST /devices/claim -> 200
-```
 
 ---
 
@@ -74,9 +63,8 @@ Backend server untuk sistem monitoring dan controlling kandang ayam berbasis IoT
 | **Message Broker** | Eclipse Mosquitto 2.x |
 | **ORM** | SQLAlchemy 2.0 |
 | **Validation** | Pydantic 2.x |
-| **Rate Limiting** | SlowAPI |
+| **Authentication** | Firebase Admin SDK |
 | **Container** | Docker & Docker Compose |
-| **Testing** | pytest, httpx |
 
 ---
 
@@ -84,7 +72,7 @@ Backend server untuk sistem monitoring dan controlling kandang ayam berbasis IoT
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/Bagus-DevLab/PKL_PCB_BACKEND.git
+git clone [https://github.com/Bagus-DevLab/PKL_PCB_BACKEND.git](https://github.com/Bagus-DevLab/PKL_PCB_BACKEND.git)
 cd pkl-pcb
 ```
 
