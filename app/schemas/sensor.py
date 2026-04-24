@@ -15,10 +15,3 @@ class LogResponse(BaseModel):
     
     class Config:
         from_attributes = True
-
-
-class LogCreate(BaseModel):
-    """Schema untuk membuat sensor log baru (internal use)"""
-    temperature: float
-    humidity: float
-    ammonia: float

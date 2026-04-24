@@ -22,7 +22,6 @@ Base = declarative_base()
 
 logger.info("Database engine created successfully")
 
-from sqlalchemy.orm import Session
 
 def get_db():
     db = SessionLocal()

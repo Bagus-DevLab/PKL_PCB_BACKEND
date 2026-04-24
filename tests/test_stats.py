@@ -5,7 +5,6 @@ Menguji fitur statistik rata-rata suhu harian yang digunakan
 untuk grafik dashboard di mobile app.
 """
 
-import pytest
 import uuid
 from datetime import datetime, timezone, timedelta
 
@@ -353,22 +352,3 @@ class TestGetDailyTemperatureStats:
         # jadi query days=1 (hari ini saja) harus mengembalikan list kosong.
         assert data["statistics"] == []
         assert data["total_days"] == 0
-
-
-class TestGetDailyTemperatureStatsFixtures:
-    """
-    Catatan fixture yang dibutuhkan untuk test suite ini.
-    
-    Fixture yang SUDAH ADA di conftest.py (dipakai dari test_device.py):
-    - client              : TestClient FastAPI
-    - auth_headers        : Header Authorization dengan token valid
-    - test_device_claimed : Device yang sudah diklaim oleh user test
-    - test_device_unclaimed: Device yang belum diklaim siapapun
-    - test_sensor_logs    : Sensor logs untuk test_device_claimed
-    
-    Fixture yang PERLU DITAMBAHKAN di conftest.py:
-    - test_device_other_user    : Device milik user LAIN (bukan user test)
-    - test_device_claimed_no_logs: Device milik user test tapi TANPA sensor log
-    - test_sensor_logs_old      : Sensor logs dengan timestamp lama (> 90 hari lalu)
-    """
-    pass

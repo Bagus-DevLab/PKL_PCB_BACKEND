@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { motion } from 'framer-motion';
 import { ArrowRight, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';

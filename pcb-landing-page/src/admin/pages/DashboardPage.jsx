@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Cpu, Wifi, WifiOff, ShieldCheck, Package } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Users, Cpu, Wifi, ShieldCheck, Package } from "lucide-react";
 import { adminApi } from "@/lib/api";
 
 export default function DashboardPage() {

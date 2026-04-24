@@ -2,7 +2,6 @@
 Unit tests untuk endpoint Device (/api/devices).
 """
 
-import pytest
 import uuid
 
 

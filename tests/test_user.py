@@ -2,7 +2,6 @@
 Unit tests untuk endpoint User (/users).
 """
 
-import pytest
 import uuid
 
 

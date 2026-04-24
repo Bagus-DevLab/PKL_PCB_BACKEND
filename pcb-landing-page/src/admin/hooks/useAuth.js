@@ -3,7 +3,6 @@ import { auth } from "@/lib/firebase";
 import {
   signInWithEmailAndPassword,
   signOut,
-  onAuthStateChanged,
 } from "firebase/auth";
 import { authApi, userApi } from "@/lib/api";
 
@@ -39,7 +38,7 @@ export function useAuth() {
 
       // 2. Kirim Firebase token ke backend → dapat JWT lokal
       const response = await authApi.loginWithFirebase(idToken);
-      const { access_token, user_info } = response.data;
+      const { access_token } = response.data;
 
       // 3. Cek role — harus admin
       localStorage.setItem("access_token", access_token);

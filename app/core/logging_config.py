@@ -17,7 +17,6 @@ def setup_logging():
         logger.handlers.clear()
 
     request_id_filter = RequestIdFilter()
-    # HAPUS BARIS INI: logger.addFilter(request_id_filter) 
 
     # --- HANDLER 1: FILE (Rotating) ---
     filepath = os.path.join(LOG_DIR, LOG_FILENAME)
@@ -27,9 +26,7 @@ def setup_logging():
             
         file_handler = RotatingFileHandler(filepath, maxBytes=5*1024*1024, backupCount=3)
         file_handler.setFormatter(logging.Formatter(LOG_FORMAT, defaults={"request_id": "SYSTEM"}))
-        
-        # TAMBAHKAN FILTER DI SINI
-        file_handler.addFilter(request_id_filter) 
+        file_handler.addFilter(request_id_filter)
         logger.addHandler(file_handler)
         
     except PermissionError:
@@ -40,11 +37,7 @@ def setup_logging():
     # --- HANDLER 2: CONSOLE (Terminal) ---
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(logging.Formatter(LOG_FORMAT, defaults={"request_id": "SYSTEM"}))
-    
-    # TAMBAHKAN FILTER DI SINI
-    console_handler.addFilter(request_id_filter) 
-    
-    # KELUPAAN DI KODE SEBELUMNYA, TAMBAHKAN HANDLER KE LOGGER
-    logger.addHandler(console_handler) 
+    console_handler.addFilter(request_id_filter)
+    logger.addHandler(console_handler)
 
     return logger
