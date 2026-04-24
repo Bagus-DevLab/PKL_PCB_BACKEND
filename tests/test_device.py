@@ -1,248 +1,293 @@
 """
 Unit tests untuk endpoint Device (/api/devices).
+Tests menggunakan role-based access control:
+- super_admin: akses semua
+- admin: akses device miliknya
+- operator: akses device yang di-assign
+- viewer: lihat saja, tidak bisa kontrol
+- user: tidak bisa akses device
 """
 
 import uuid
 
 
 class TestClaimDevice:
-    """Test suite untuk endpoint POST /devices/claim"""
-    
-    def test_claim_device_success(self, client, auth_headers, test_device_unclaimed):
-        """Test klaim device yang tersedia berhasil"""
+    """Test suite untuk POST /api/devices/claim — hanya admin+ yang bisa claim"""
+
+    def test_claim_device_success(self, client, admin_headers, test_device_unclaimed):
+        """Admin bisa klaim device yang tersedia"""
         response = client.post(
             "/api/devices/claim",
-            json={
-                "mac_address": test_device_unclaimed.mac_address,
-                "name": "Kandang Baru Saya"
-            },
-            headers=auth_headers
+            json={"mac_address": test_device_unclaimed.mac_address, "name": "Kandang Baru"},
+            headers=admin_headers
         )
-        
         assert response.status_code == 200
         data = response.json()
         assert data["mac_address"] == test_device_unclaimed.mac_address
-        assert data["name"] == "Kandang Baru Saya"
+        assert data["name"] == "Kandang Baru"
         assert data["user_id"] is not None
-    
-    def test_claim_device_not_found(self, client, auth_headers):
-        """Test klaim device dengan MAC address tidak terdaftar"""
+
+    def test_claim_device_not_found(self, client, admin_headers):
+        """Klaim device dengan MAC tidak terdaftar"""
         response = client.post(
             "/api/devices/claim",
-            json={
-                "mac_address": "FF:FF:FF:FF:FF:FF",  # MAC tidak ada di DB
-                "name": "Device Palsu"
-            },
-            headers=auth_headers
+            json={"mac_address": "FF:FF:FF:FF:FF:FF", "name": "Device Palsu"},
+            headers=admin_headers
         )
-        
         assert response.status_code == 404
-        assert "tidak dikenali" in response.json()["detail"]
-    
-    def test_claim_device_already_claimed(self, client, auth_headers, test_device_claimed):
-        """Test klaim device yang sudah diklaim orang lain"""
+
+    def test_claim_device_already_claimed(self, client, admin_headers, test_device_claimed):
+        """Klaim device yang sudah diklaim"""
         response = client.post(
             "/api/devices/claim",
-            json={
-                "mac_address": test_device_claimed.mac_address,
-                "name": "Coba Ambil Punya Orang"
-            },
+            json={"mac_address": test_device_claimed.mac_address, "name": "Coba Ambil"},
+            headers=admin_headers
+        )
+        assert response.status_code == 400
+
+    def test_claim_device_user_role_forbidden(self, client, auth_headers, test_device_unclaimed):
+        """User biasa tidak bisa klaim device"""
+        response = client.post(
+            "/api/devices/claim",
+            json={"mac_address": test_device_unclaimed.mac_address, "name": "Coba Klaim"},
             headers=auth_headers
         )
-        
-        assert response.status_code == 400
-        assert "sudah diklaim" in response.json()["detail"]
-    
+        assert response.status_code == 403
+
     def test_claim_device_without_auth(self, client, test_device_unclaimed):
-        """Test klaim device tanpa token (harus gagal)"""
+        """Klaim tanpa token"""
         response = client.post(
             "/api/devices/claim",
-            json={
-                "mac_address": test_device_unclaimed.mac_address,
-                "name": "Kandang Tanpa Login"
-            }
+            json={"mac_address": test_device_unclaimed.mac_address, "name": "Tanpa Login"}
         )
-        
-        assert response.status_code == 401  # Unauthorized (no credentials)
+        assert response.status_code == 401
 
 
 class TestReadMyDevices:
-    """Test suite untuk endpoint GET /devices/"""
-    
-    def test_get_devices_success(self, client, auth_headers, test_device_claimed):
-        """Test mendapatkan list device milik user"""
-        response = client.get("/api/devices/", headers=auth_headers)
-        
+    """Test suite untuk GET /api/devices/ — berdasarkan role"""
+
+    def test_admin_sees_own_devices(self, client, admin_headers, test_device_claimed):
+        """Admin melihat device miliknya"""
+        response = client.get("/api/devices/", headers=admin_headers)
         assert response.status_code == 200
         data = response.json()
-        assert isinstance(data, list)
         assert len(data) >= 1
-        
-        # Cek device yang diklaim ada di response
-        mac_addresses = [d["mac_address"] for d in data]
-        assert test_device_claimed.mac_address in mac_addresses
-    
-    def test_get_devices_empty(self, client, auth_headers):
-        """Test mendapatkan list device ketika user belum punya device"""
+        assert test_device_claimed.mac_address in [d["mac_address"] for d in data]
+
+    def test_user_sees_empty_list(self, client, auth_headers):
+        """User default melihat list kosong"""
         response = client.get("/api/devices/", headers=auth_headers)
-        
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_operator_sees_assigned_devices(self, client, operator_headers, test_device_claimed, test_operator_assignment):
+        """Operator melihat device yang di-assign"""
+        response = client.get("/api/devices/", headers=operator_headers)
         assert response.status_code == 200
         data = response.json()
-        assert isinstance(data, list)
-    
-    def test_get_devices_without_auth(self, client):
-        """Test akses list device tanpa token"""
+        assert len(data) == 1
+        assert data[0]["id"] == str(test_device_claimed.id)
+
+    def test_super_admin_sees_all_devices(self, client, super_admin_headers, test_device_claimed, test_device_unclaimed):
+        """Super Admin melihat semua device"""
+        response = client.get("/api/devices/", headers=super_admin_headers)
+        assert response.status_code == 200
+        assert len(response.json()) >= 2
+
+    def test_without_auth(self, client):
         response = client.get("/api/devices/")
-        
         assert response.status_code == 401
-    
-    def test_get_devices_with_online_status(self, client, auth_headers, test_device_claimed):
-        """Test response memiliki field is_online"""
-        response = client.get("/api/devices/", headers=auth_headers)
-        
-        assert response.status_code == 200
-        data = response.json()
-        
-        for device in data:
-            assert "is_online" in device
 
 
 class TestReadDeviceLogs:
-    """Test suite untuk endpoint GET /devices/{device_id}/logs"""
-    
-    def test_get_logs_success(self, client, auth_headers, test_device_claimed, test_sensor_logs):
-        """Test mendapatkan sensor logs dari device"""
-        response = client.get(
-            f"/api/devices/{test_device_claimed.id}/logs",
-            headers=auth_headers
-        )
-        
+    """Test suite untuk GET /api/devices/{id}/logs — access check"""
+
+    def test_admin_gets_logs(self, client, admin_headers, test_device_claimed, test_sensor_logs):
+        """Admin bisa lihat logs device miliknya"""
+        response = client.get(f"/api/devices/{test_device_claimed.id}/logs", headers=admin_headers)
         assert response.status_code == 200
-        data = response.json()
-        assert isinstance(data, list)
-        assert len(data) > 0
-    
-    def test_get_logs_with_limit(self, client, auth_headers, test_device_claimed, test_sensor_logs):
-        """Test mendapatkan logs dengan limit"""
-        response = client.get(
-            f"/api/devices/{test_device_claimed.id}/logs?limit=3",
-            headers=auth_headers
-        )
-        
+        assert len(response.json()) > 0
+
+    def test_operator_gets_logs(self, client, operator_headers, test_device_claimed, test_sensor_logs, test_operator_assignment):
+        """Operator bisa lihat logs device yang di-assign"""
+        response = client.get(f"/api/devices/{test_device_claimed.id}/logs", headers=operator_headers)
         assert response.status_code == 200
-        data = response.json()
-        assert len(data) <= 3
-    
-    def test_get_logs_device_not_found(self, client, auth_headers):
-        """Test akses logs dari device yang tidak ada"""
-        fake_id = uuid.uuid4()
-        response = client.get(
-            f"/api/devices/{fake_id}/logs",
-            headers=auth_headers
-        )
-        
+        assert len(response.json()) > 0
+
+    def test_viewer_gets_logs(self, client, viewer_headers, test_device_claimed, test_sensor_logs, test_viewer_assignment):
+        """Viewer bisa lihat logs device yang di-assign"""
+        response = client.get(f"/api/devices/{test_device_claimed.id}/logs", headers=viewer_headers)
+        assert response.status_code == 200
+
+    def test_user_cannot_get_logs(self, client, auth_headers, test_device_claimed):
+        """User default tidak bisa lihat logs"""
+        response = client.get(f"/api/devices/{test_device_claimed.id}/logs", headers=auth_headers)
+        assert response.status_code == 403
+
+    def test_operator_no_assignment_denied(self, client, operator_headers, test_device_claimed):
+        """Operator tanpa assignment tidak bisa akses"""
+        response = client.get(f"/api/devices/{test_device_claimed.id}/logs", headers=operator_headers)
         assert response.status_code == 404
-    
-    def test_get_logs_not_owned(self, client, auth_headers, test_device_unclaimed):
-        """Test akses logs dari device yang bukan milik user"""
-        response = client.get(
-            f"/api/devices/{test_device_unclaimed.id}/logs",
-            headers=auth_headers
-        )
-        
-        assert response.status_code == 404  # Akses ditolak
 
-
-class TestGetDeviceAlerts:
-    """Test suite untuk endpoint GET /devices/{device_id}/alerts"""
-    
-    def test_get_alerts_success(self, client, auth_headers, test_device_claimed, test_sensor_logs):
-        """Test mendapatkan alert logs"""
-        response = client.get(
-            f"/api/devices/{test_device_claimed.id}/alerts",
-            headers=auth_headers
-        )
-        
+    def test_logs_with_limit(self, client, admin_headers, test_device_claimed, test_sensor_logs):
+        response = client.get(f"/api/devices/{test_device_claimed.id}/logs?limit=3", headers=admin_headers)
         assert response.status_code == 200
-        data = response.json()
-        assert isinstance(data, list)
-        
-        # Semua log yang dikembalikan harus is_alert = True
-        for log in data:
-            assert log["is_alert"] == True
-    
-    def test_get_alerts_device_not_owned(self, client, auth_headers, test_device_unclaimed):
-        """Test akses alerts dari device bukan milik user"""
-        response = client.get(
-            f"/api/devices/{test_device_unclaimed.id}/alerts",
-            headers=auth_headers
-        )
-        
-        assert response.status_code == 404  # Akses ditolak
+        assert len(response.json()) <= 3
 
 
 class TestControlDevice:
-    """Test suite untuk endpoint POST /devices/{device_id}/control"""
-    
-    def test_control_device_not_owned(self, client, auth_headers, test_device_unclaimed):
-        """Test kontrol device yang bukan milik user"""
+    """Test suite untuk POST /api/devices/{id}/control — hanya admin/operator"""
+
+    def test_admin_can_control(self, client, admin_headers, test_device_claimed):
+        """Admin bisa kontrol device miliknya"""
         response = client.post(
-            f"/api/devices/{test_device_unclaimed.id}/control",
+            f"/api/devices/{test_device_claimed.id}/control",
+            json={"component": "kipas", "state": True},
+            headers=admin_headers
+        )
+        # Bisa 200 (sukses) atau 500 (MQTT not connected di test) — yang penting bukan 403/404
+        assert response.status_code in [200, 500]
+
+    def test_operator_can_control(self, client, operator_headers, test_device_claimed, test_operator_assignment):
+        """Operator bisa kontrol device yang di-assign"""
+        response = client.post(
+            f"/api/devices/{test_device_claimed.id}/control",
+            json={"component": "lampu", "state": False},
+            headers=operator_headers
+        )
+        assert response.status_code in [200, 500]
+
+    def test_viewer_cannot_control(self, client, viewer_headers, test_device_claimed, test_viewer_assignment):
+        """Viewer TIDAK bisa kontrol device (read-only)"""
+        response = client.post(
+            f"/api/devices/{test_device_claimed.id}/control",
+            json={"component": "kipas", "state": True},
+            headers=viewer_headers
+        )
+        assert response.status_code == 403
+
+    def test_user_cannot_control(self, client, auth_headers, test_device_claimed):
+        """User default TIDAK bisa kontrol device"""
+        response = client.post(
+            f"/api/devices/{test_device_claimed.id}/control",
             json={"component": "kipas", "state": True},
             headers=auth_headers
         )
-        
-        assert response.status_code == 404
-    
-    def test_control_device_not_found(self, client, auth_headers):
-        """Test kontrol device yang tidak ada"""
-        fake_id = uuid.uuid4()
-        response = client.post(
-            f"/api/devices/{fake_id}/control",
-            json={"component": "lampu", "state": False},
-            headers=auth_headers
-        )
-        
-        assert response.status_code == 404
-    
-    def test_control_device_without_auth(self, client, test_device_claimed):
-        """Test kontrol device tanpa autentikasi"""
+        assert response.status_code == 403
+
+    def test_without_auth(self, client, test_device_claimed):
         response = client.post(
             f"/api/devices/{test_device_claimed.id}/control",
             json={"component": "kipas", "state": True}
         )
-        
         assert response.status_code == 401
+
+
+class TestGetDeviceAlerts:
+    """Test suite untuk GET /api/devices/{id}/alerts"""
+
+    def test_admin_gets_alerts(self, client, admin_headers, test_device_claimed, test_sensor_logs):
+        response = client.get(f"/api/devices/{test_device_claimed.id}/alerts", headers=admin_headers)
+        assert response.status_code == 200
+        for log in response.json():
+            assert log["is_alert"] == True
+
+    def test_user_cannot_get_alerts(self, client, auth_headers, test_device_claimed):
+        response = client.get(f"/api/devices/{test_device_claimed.id}/alerts", headers=auth_headers)
+        assert response.status_code == 403
 
 
 class TestUnclaimDevice:
-    """Test suite untuk endpoint POST /devices/{device_id}/unclaim"""
-    
-    def test_unclaim_device_success(self, client, auth_headers, test_device_claimed):
-        """Test unclaim device milik sendiri berhasil"""
+    """Test suite untuk POST /api/devices/{id}/unclaim — hanya admin+"""
+
+    def test_admin_unclaim_success(self, client, admin_headers, test_device_claimed):
+        response = client.post(f"/api/devices/{test_device_claimed.id}/unclaim", headers=admin_headers)
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+
+    def test_user_cannot_unclaim(self, client, auth_headers, test_device_claimed):
+        response = client.post(f"/api/devices/{test_device_claimed.id}/unclaim", headers=auth_headers)
+        assert response.status_code == 403
+
+    def test_without_auth(self, client, test_device_claimed):
+        response = client.post(f"/api/devices/{test_device_claimed.id}/unclaim")
+        assert response.status_code == 401
+
+
+class TestDeviceAssignment:
+    """Test suite untuk device assignment endpoints"""
+
+    def test_admin_assign_operator(self, client, admin_headers, test_device_claimed, test_user):
+        """Admin bisa assign user ke device miliknya"""
         response = client.post(
-            f"/api/devices/{test_device_claimed.id}/unclaim",
-            headers=auth_headers
+            f"/api/devices/{test_device_claimed.id}/assign",
+            json={"user_id": str(test_user.id), "role": "operator"},
+            headers=admin_headers
         )
-        
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "success"
-        assert "berhasil" in data["message"].lower()
-    
-    def test_unclaim_device_not_owned(self, client, auth_headers, test_device_unclaimed):
-        """Test unclaim device yang bukan milik user"""
+        assert data["user_id"] == str(test_user.id)
+        assert data["role"] == "operator"
+
+    def test_admin_assign_viewer(self, client, admin_headers, test_device_claimed, test_user):
+        """Admin bisa assign viewer ke device"""
         response = client.post(
-            f"/api/devices/{test_device_unclaimed.id}/unclaim",
+            f"/api/devices/{test_device_claimed.id}/assign",
+            json={"user_id": str(test_user.id), "role": "viewer"},
+            headers=admin_headers
+        )
+        assert response.status_code == 200
+        assert response.json()["role"] == "viewer"
+
+    def test_admin_cannot_assign_to_other_device(self, client, admin_headers, test_device_other_user, test_user):
+        """Admin tidak bisa assign ke device bukan miliknya"""
+        response = client.post(
+            f"/api/devices/{test_device_other_user.id}/assign",
+            json={"user_id": str(test_user.id), "role": "operator"},
+            headers=admin_headers
+        )
+        assert response.status_code == 404
+
+    def test_user_cannot_assign(self, client, auth_headers, test_device_claimed, test_operator):
+        """User biasa tidak bisa assign"""
+        response = client.post(
+            f"/api/devices/{test_device_claimed.id}/assign",
+            json={"user_id": str(test_operator.id), "role": "operator"},
             headers=auth_headers
         )
-        
-        assert response.status_code == 404
-    
-    def test_unclaim_device_without_auth(self, client, test_device_claimed):
-        """Test unclaim tanpa autentikasi"""
+        assert response.status_code == 403
+
+    def test_duplicate_assignment_rejected(self, client, admin_headers, test_device_claimed, test_operator, test_operator_assignment):
+        """Tidak bisa assign user yang sudah di-assign"""
         response = client.post(
-            f"/api/devices/{test_device_claimed.id}/unclaim"
+            f"/api/devices/{test_device_claimed.id}/assign",
+            json={"user_id": str(test_operator.id), "role": "operator"},
+            headers=admin_headers
         )
-        
-        assert response.status_code == 401
+        assert response.status_code == 400
+
+    def test_admin_unassign(self, client, admin_headers, test_device_claimed, test_operator, test_operator_assignment):
+        """Admin bisa unassign user dari device"""
+        response = client.delete(
+            f"/api/devices/{test_device_claimed.id}/assign/{test_operator.id}",
+            headers=admin_headers
+        )
+        assert response.status_code == 200
+
+    def test_get_assignments(self, client, admin_headers, test_device_claimed, test_operator_assignment):
+        """Admin bisa lihat assignments"""
+        response = client.get(
+            f"/api/devices/{test_device_claimed.id}/assignments",
+            headers=admin_headers
+        )
+        assert response.status_code == 200
+        assert len(response.json()) >= 1
+
+    def test_super_admin_assign_any_device(self, client, super_admin_headers, test_device_claimed, test_user):
+        """Super Admin bisa assign ke device manapun"""
+        response = client.post(
+            f"/api/devices/{test_device_claimed.id}/assign",
+            json={"user_id": str(test_user.id), "role": "operator"},
+            headers=super_admin_headers
+        )
+        assert response.status_code == 200

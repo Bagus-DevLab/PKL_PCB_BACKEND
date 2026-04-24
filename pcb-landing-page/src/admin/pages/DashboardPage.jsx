@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import AnimatedCounter from "@/components/shared/AnimatedCounter";
-import { Users, Cpu, Wifi, ShieldCheck, Package, TrendingUp } from "lucide-react";
+import { Users, Cpu, Wifi, ShieldCheck, Package, TrendingUp, Crown, Wrench, Eye, Link2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { adminApi } from "@/lib/api";
 
@@ -66,23 +66,27 @@ export default function DashboardPage() {
   const cards = stats
     ? [
         { title: "Total User", value: stats.total_users, icon: Users, color: "text-blue-500", bg: "bg-blue-50" },
+        { title: "Super Admin", value: stats.total_super_admins, icon: Crown, color: "text-red-500", bg: "bg-red-50" },
         { title: "Admin", value: stats.total_admins, icon: ShieldCheck, color: "text-purple-500", bg: "bg-purple-50" },
+        { title: "Operator", value: stats.total_operators, icon: Wrench, color: "text-blue-500", bg: "bg-blue-50" },
+        { title: "Viewer", value: stats.total_viewers, icon: Eye, color: "text-emerald-500", bg: "bg-emerald-50" },
         { title: "Total Device", value: stats.total_devices, icon: Cpu, color: "text-slate-600", bg: "bg-slate-100" },
         { title: "Diklaim", value: stats.total_devices_claimed, icon: Package, color: "text-green-500", bg: "bg-green-50" },
         { title: "Belum Diklaim", value: stats.total_devices_unclaimed, icon: Package, color: "text-amber-500", bg: "bg-amber-50" },
         { title: "Online", value: stats.total_devices_online, icon: Wifi, color: "text-emerald-500", bg: "bg-emerald-50" },
+        { title: "Assignments", value: stats.total_assignments, icon: Link2, color: "text-indigo-500", bg: "bg-indigo-50" },
       ]
     : [];
 
   // Chart data from stats
   const chartData = stats
     ? [
-        { name: "User", value: stats.total_users, fill: "#3b82f6" },
+        { name: "Users", value: stats.total_users, fill: "#3b82f6" },
         { name: "Admin", value: stats.total_admins, fill: "#a855f7" },
+        { name: "Operator", value: stats.total_operators, fill: "#3b82f6" },
+        { name: "Viewer", value: stats.total_viewers, fill: "#10b981" },
         { name: "Device", value: stats.total_devices, fill: "#64748b" },
-        { name: "Diklaim", value: stats.total_devices_claimed, fill: "#22c55e" },
-        { name: "Unclaimed", value: stats.total_devices_unclaimed, fill: "#f59e0b" },
-        { name: "Online", value: stats.total_devices_online, fill: "#10b981" },
+        { name: "Online", value: stats.total_devices_online, fill: "#22c55e" },
       ]
     : [];
 

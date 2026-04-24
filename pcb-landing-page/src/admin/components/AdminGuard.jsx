@@ -17,7 +17,7 @@ export default function AdminGuard({ user, loading, children }) {
     );
   }
 
-  if (!user || user.role !== "admin") {
+  if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
     return <Navigate to="/admin/login" replace />;
   }
 

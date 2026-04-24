@@ -11,7 +11,7 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { ShieldCheck, User, RefreshCw, CloudDownload, Search, Loader2 } from "lucide-react";
+import { ShieldCheck, User, RefreshCw, CloudDownload, Search, Loader2, Crown, Wrench, Eye } from "lucide-react";
 import { adminApi, userApi } from "@/lib/api";
 
 function TableSkeleton() {
@@ -201,28 +201,50 @@ export default function UsersPage() {
                       <TableCell className="font-medium text-sm">{user.email}</TableCell>
                       <TableCell className="hidden sm:table-cell text-sm text-slate-500">{user.full_name || "-"}</TableCell>
                       <TableCell>
-                        {user.role === "admin" ? (
-                          <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100 text-xs">
-                            <ShieldCheck className="w-3 h-3 mr-1" />Admin
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-xs">
-                            <User className="w-3 h-3 mr-1" />User
-                          </Badge>
-                        )}
+                        {(() => {
+                          const roleConfig = {
+                            super_admin: { icon: Crown, label: "Super Admin", cls: "bg-red-100 text-red-700 hover:bg-red-100" },
+                            admin: { icon: ShieldCheck, label: "Admin", cls: "bg-purple-100 text-purple-700 hover:bg-purple-100" },
+                            operator: { icon: Wrench, label: "Operator", cls: "bg-blue-100 text-blue-700 hover:bg-blue-100" },
+                            viewer: { icon: Eye, label: "Viewer", cls: "bg-emerald-100 text-emerald-700 hover:bg-emerald-100" },
+                            user: { icon: User, label: "User", cls: "" },
+                          };
+                          const cfg = roleConfig[user.role] || roleConfig.user;
+                          const Icon = cfg.icon;
+                          return user.role === "user" ? (
+                            <Badge variant="outline" className="text-xs"><Icon className="w-3 h-3 mr-1" />{cfg.label}</Badge>
+                          ) : (
+                            <Badge className={`text-xs ${cfg.cls}`}><Icon className="w-3 h-3 mr-1" />{cfg.label}</Badge>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-xs text-slate-400">{user.provider}</TableCell>
                       <TableCell className="text-right">
                         {user.id === currentUser.id ? (
                           <span className="text-xs text-slate-300">Anda</span>
-                        ) : user.role === "admin" ? (
-                          <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => openRoleDialog(user, "user")}>
-                            Jadikan User
-                          </Button>
+                        ) : user.role === "super_admin" ? (
+                          <span className="text-xs text-slate-300">Super Admin</span>
                         ) : (
-                          <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => openRoleDialog(user, "admin")}>
-                            Jadikan Admin
-                          </Button>
+                          <select
+                            className="text-xs border border-slate-200 rounded-md px-2 py-1 bg-white text-slate-700 cursor-pointer hover:border-slate-300"
+                            value={user.role}
+                            onChange={(e) => openRoleDialog(user, e.target.value)}
+                          >
+                            {currentUser.role === "super_admin" ? (
+                              <>
+                                <option value="admin">Admin</option>
+                                <option value="operator">Operator</option>
+                                <option value="viewer">Viewer</option>
+                                <option value="user">User</option>
+                              </>
+                            ) : (
+                              <>
+                                <option value="operator">Operator</option>
+                                <option value="viewer">Viewer</option>
+                                <option value="user">User</option>
+                              </>
+                            )}
+                          </select>
                         )}
                       </TableCell>
                     </motion.tr>

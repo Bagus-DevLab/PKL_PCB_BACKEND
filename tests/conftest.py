@@ -37,42 +37,35 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base, get_db
 from app.main import app
 from app.models.user import User, UserRole
-from app.models.device import Device, SensorLog
+from app.models.device import Device, SensorLog, DeviceAssignment
 from app.core.security import create_access_token
 import app.database as database_module
 import app.main as main_module
 
 
-# Test Database Setup (SQLite in-memory with StaticPool for connection sharing)
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
     connect_args={"check_same_thread": False},
-    poolclass=StaticPool,  # Important: reuses same connection
+    poolclass=StaticPool,
 )
 
-# Patch the app's engine to use our test engine
 database_module.engine = engine
 main_module.engine = engine
 
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-
-# Create tables once at module load
 Base.metadata.create_all(bind=engine)
 
 
 @pytest.fixture(scope="function")
 def db_session() -> Generator:
-    """
-    Fixture untuk database session dengan proper cleanup.
-    """
     db = TestingSessionLocal()
     try:
         yield db
     finally:
-        # Clean up all data after each test
+        db.query(DeviceAssignment).delete()
         db.query(SensorLog).delete()
         db.query(Device).delete()
         db.query(User).delete()
@@ -82,35 +75,31 @@ def db_session() -> Generator:
 
 @pytest.fixture(scope="function")
 def client(db_session) -> Generator:
-    """
-    Fixture untuk TestClient.
-    Override database dependency dengan test database.
-    """
     def override_get_db():
         try:
             yield db_session
         finally:
             pass
-    
+
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
 
 
-@pytest.fixture
-def test_user(db_session) -> User:
-    """
-    Fixture untuk membuat user test di database.
-    """
+# ==========================================
+# USER FIXTURES (5 roles)
+# ==========================================
+
+def _create_user(db_session, email, name, role):
     user = User(
         id=uuid.uuid4(),
-        email="testuser@example.com",
-        full_name="Test User",
-        picture="https://example.com/picture.jpg",
+        email=email,
+        full_name=name,
+        picture=f"https://example.com/{name.lower().replace(' ', '')}.jpg",
         provider="google",
         is_active=True,
-        role=UserRole.USER.value
+        role=role,
     )
     db_session.add(user)
     db_session.commit()
@@ -118,67 +107,86 @@ def test_user(db_session) -> User:
     return user
 
 
+def _create_token(user):
+    return create_access_token(data={"sub": str(user.id), "email": user.email})
+
+
+def _create_headers(user):
+    return {"Authorization": f"Bearer {_create_token(user)}"}
+
+
+@pytest.fixture
+def test_user(db_session) -> User:
+    """User default (role: user) — tidak bisa akses device apapun."""
+    return _create_user(db_session, "testuser@example.com", "Test User", UserRole.USER.value)
+
+
 @pytest.fixture
 def test_user_token(test_user) -> str:
-    """
-    Fixture untuk membuat JWT token dari test user.
-    """
-    return create_access_token(
-        data={"sub": str(test_user.id), "email": test_user.email}
-    )
+    return _create_token(test_user)
 
 
 @pytest.fixture
 def auth_headers(test_user_token) -> dict:
-    """
-    Fixture untuk headers dengan Bearer token.
-    """
     return {"Authorization": f"Bearer {test_user_token}"}
 
 
 @pytest.fixture
+def test_super_admin(db_session) -> User:
+    """Super Admin — akses penuh ke seluruh sistem."""
+    return _create_user(db_session, "superadmin@example.com", "Super Admin", UserRole.SUPER_ADMIN.value)
+
+
+@pytest.fixture
+def super_admin_headers(test_super_admin) -> dict:
+    return _create_headers(test_super_admin)
+
+
+@pytest.fixture
 def test_admin_user(db_session) -> User:
-    """
-    Fixture untuk membuat admin user di database.
-    """
-    admin = User(
-        id=uuid.uuid4(),
-        email="admin@example.com",
-        full_name="Admin User",
-        picture="https://example.com/admin.jpg",
-        provider="google",
-        is_active=True,
-        role=UserRole.ADMIN.value
-    )
-    db_session.add(admin)
-    db_session.commit()
-    db_session.refresh(admin)
-    return admin
+    """Admin (pemilik usaha) — bisa claim device, assign operator/viewer."""
+    return _create_user(db_session, "admin@example.com", "Admin User", UserRole.ADMIN.value)
 
 
 @pytest.fixture
 def admin_token(test_admin_user) -> str:
-    """
-    Fixture untuk membuat JWT token dari admin user.
-    """
-    return create_access_token(
-        data={"sub": str(test_admin_user.id), "email": test_admin_user.email}
-    )
+    return _create_token(test_admin_user)
 
 
 @pytest.fixture
 def admin_headers(admin_token) -> dict:
-    """
-    Fixture untuk headers dengan Bearer token admin.
-    """
     return {"Authorization": f"Bearer {admin_token}"}
 
 
 @pytest.fixture
+def test_operator(db_session) -> User:
+    """Operator — bisa lihat + kontrol device yang di-assign."""
+    return _create_user(db_session, "operator@example.com", "Operator User", UserRole.OPERATOR.value)
+
+
+@pytest.fixture
+def operator_headers(test_operator) -> dict:
+    return _create_headers(test_operator)
+
+
+@pytest.fixture
+def test_viewer(db_session) -> User:
+    """Viewer — hanya bisa lihat data device yang di-assign (read-only)."""
+    return _create_user(db_session, "viewer@example.com", "Viewer User", UserRole.VIEWER.value)
+
+
+@pytest.fixture
+def viewer_headers(test_viewer) -> dict:
+    return _create_headers(test_viewer)
+
+
+# ==========================================
+# DEVICE FIXTURES
+# ==========================================
+
+@pytest.fixture
 def test_device_unclaimed(db_session) -> Device:
-    """
-    Fixture untuk membuat device BELUM diklaim (dari pabrik).
-    """
+    """Device belum diklaim (dari pabrik)."""
     device = Device(
         id=uuid.uuid4(),
         mac_address="AA:BB:CC:DD:EE:FF",
@@ -192,15 +200,13 @@ def test_device_unclaimed(db_session) -> Device:
 
 
 @pytest.fixture
-def test_device_claimed(db_session, test_user) -> Device:
-    """
-    Fixture untuk membuat device SUDAH diklaim user.
-    """
+def test_device_claimed(db_session, test_admin_user) -> Device:
+    """Device milik admin (sudah diklaim)."""
     device = Device(
         id=uuid.uuid4(),
         mac_address="11:22:33:44:55:66",
         name="Kandang Ayam Utama",
-        user_id=test_user.id,
+        user_id=test_admin_user.id,
         last_heartbeat=datetime.now(timezone.utc)
     )
     db_session.add(device)
@@ -211,9 +217,7 @@ def test_device_claimed(db_session, test_user) -> Device:
 
 @pytest.fixture
 def test_sensor_logs(db_session, test_device_claimed) -> list:
-    """
-    Fixture untuk membuat sample sensor logs.
-    """
+    """Sample sensor logs untuk test_device_claimed."""
     logs = []
     for i in range(5):
         log = SensorLog(
@@ -225,46 +229,31 @@ def test_sensor_logs(db_session, test_device_claimed) -> list:
         )
         db_session.add(log)
         logs.append(log)
-    
-    # Tambah 1 alert log
+
     alert_log = SensorLog(
         device_id=test_device_claimed.id,
-        temperature=40.0,  # Suhu bahaya
+        temperature=40.0,
         humidity=80.0,
-        ammonia=25.0,  # Amonia bahaya
+        ammonia=25.0,
         is_alert=True,
         alert_message="Suhu terlalu tinggi!"
     )
     db_session.add(alert_log)
     logs.append(alert_log)
-    
+
     db_session.commit()
     return logs
 
 
 @pytest.fixture
 def test_device_other_user(db_session) -> Device:
-    """
-    Fixture untuk membuat device milik USER LAIN (bukan test_user).
-    Digunakan untuk test security: user tidak boleh akses device orang lain.
-    """
-    other_user = User(
-        id=uuid.uuid4(),
-        email="otheruser@example.com",
-        full_name="Other User",
-        picture="https://example.com/other.jpg",
-        provider="google",
-        is_active=True
-    )
-    db_session.add(other_user)
-    db_session.commit()
-    db_session.refresh(other_user)
-
+    """Device milik user lain (bukan test_admin_user)."""
+    other_admin = _create_user(db_session, "otheradmin@example.com", "Other Admin", UserRole.ADMIN.value)
     device = Device(
         id=uuid.uuid4(),
         mac_address="FF:EE:DD:CC:BB:AA",
         name="Kandang Milik Orang Lain",
-        user_id=other_user.id,
+        user_id=other_admin.id,
         last_heartbeat=datetime.now(timezone.utc)
     )
     db_session.add(device)
@@ -274,16 +263,13 @@ def test_device_other_user(db_session) -> Device:
 
 
 @pytest.fixture
-def test_device_claimed_no_logs(db_session, test_user) -> Device:
-    """
-    Fixture untuk device yang SUDAH diklaim user test tapi TANPA sensor log.
-    Digunakan untuk test statistik ketika data kosong.
-    """
+def test_device_claimed_no_logs(db_session, test_admin_user) -> Device:
+    """Device milik admin tapi tanpa sensor log."""
     device = Device(
         id=uuid.uuid4(),
         mac_address="99:88:77:66:55:44",
         name="Kandang Kosong",
-        user_id=test_user.id,
+        user_id=test_admin_user.id,
         last_heartbeat=datetime.now(timezone.utc)
     )
     db_session.add(device)
@@ -294,10 +280,7 @@ def test_device_claimed_no_logs(db_session, test_user) -> Device:
 
 @pytest.fixture
 def test_sensor_logs_old(db_session, test_device_claimed) -> list:
-    """
-    Fixture untuk sensor logs dengan timestamp LAMA (> 90 hari lalu).
-    Digunakan untuk test bahwa query rentang tanggal bekerja dengan benar.
-    """
+    """Sensor logs dengan timestamp lama (> 90 hari lalu)."""
     from datetime import timedelta
 
     old_timestamp = datetime.now(timezone.utc) - timedelta(days=180)
@@ -316,3 +299,39 @@ def test_sensor_logs_old(db_session, test_device_claimed) -> list:
 
     db_session.commit()
     return logs
+
+
+# ==========================================
+# ASSIGNMENT FIXTURES
+# ==========================================
+
+@pytest.fixture
+def test_operator_assignment(db_session, test_device_claimed, test_operator, test_admin_user) -> DeviceAssignment:
+    """Operator di-assign ke test_device_claimed oleh admin."""
+    assignment = DeviceAssignment(
+        id=uuid.uuid4(),
+        device_id=test_device_claimed.id,
+        user_id=test_operator.id,
+        assigned_by=test_admin_user.id,
+        role=UserRole.OPERATOR.value,
+    )
+    db_session.add(assignment)
+    db_session.commit()
+    db_session.refresh(assignment)
+    return assignment
+
+
+@pytest.fixture
+def test_viewer_assignment(db_session, test_device_claimed, test_viewer, test_admin_user) -> DeviceAssignment:
+    """Viewer di-assign ke test_device_claimed oleh admin."""
+    assignment = DeviceAssignment(
+        id=uuid.uuid4(),
+        device_id=test_device_claimed.id,
+        user_id=test_viewer.id,
+        assigned_by=test_admin_user.id,
+        role=UserRole.VIEWER.value,
+    )
+    db_session.add(assignment)
+    db_session.commit()
+    db_session.refresh(assignment)
+    return assignment

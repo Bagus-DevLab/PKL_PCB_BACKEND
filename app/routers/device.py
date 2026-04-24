@@ -6,12 +6,17 @@ from typing import List
 from uuid import UUID
 from app.core.limiter import limiter
 from app.database import get_db
-from app.models.user import User
-from app.models.device import Device, SensorLog
+from app.models.user import User, UserRole
+from app.models.device import Device, SensorLog, DeviceAssignment
 from app.schemas import DeviceClaim, DeviceResponse, LogResponse, DeviceRegister
-from app.dependencies import get_current_user, get_current_admin
-
-from app.schemas.device import DeviceControl, DailyTemperatureStats, DailyTemperatureStatsResponse
+from app.schemas.device import (
+    DeviceControl, DailyTemperatureStats, DailyTemperatureStatsResponse,
+    DeviceAssignmentCreate, DeviceAssignmentResponse,
+)
+from app.dependencies import (
+    get_current_user, get_current_admin, get_current_super_admin,
+    get_device_with_access, check_can_control_device,
+)
 from app.mqtt.publisher import publish_control
 from datetime import date as date_type, datetime, timezone, timedelta
 
@@ -22,89 +27,71 @@ router = APIRouter(
     tags=["Devices"]
 )
 
-# 0. FITUR REGISTER (KHUSUS ADMIN PABRIK)
+
+# ==========================================
+# 0. REGISTER DEVICE (KHUSUS SUPER ADMIN)
+# ==========================================
 @router.post("/register", response_model=DeviceResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit("20/minute")
 def register_device(
     request: Request,
-    device_in: DeviceRegister, 
+    device_in: DeviceRegister,
     db: Session = Depends(get_db),
-    admin_user: User = Depends(get_current_admin)
+    admin_user: User = Depends(get_current_super_admin)
 ):
-    """
-    Admin mendaftarkan MAC Address device buatan pabrik ke Database. 
-    Hanya device yang sudah terdaftar di sini yang bisa diklaim oleh User.
-    """
-    logger.info(f"Admin {admin_user.email} mendaftarkan device baru MAC: {device_in.mac_address}")
-    
-    # Cek apakah device sudah ada
+    """Mendaftarkan MAC Address device baru. Khusus Super Admin."""
+    logger.info(f"Super Admin {admin_user.email} mendaftarkan device baru MAC: {device_in.mac_address}")
+
     existing_device = db.query(Device).filter(Device.mac_address == device_in.mac_address).first()
     if existing_device:
-        logger.warning(f"Register GAGAL - MAC {device_in.mac_address} sudah terdaftar")
-        raise HTTPException(
-            status_code=400, 
-            detail="Perangkat dengan MAC Address tersebut sudah terdaftar di sistem!"
-        )
+        raise HTTPException(status_code=400, detail="Perangkat dengan MAC Address tersebut sudah terdaftar!")
 
-    # Buat Device baru, user_id = Null (Belum diklaim)
-    new_device = Device(
-        mac_address=device_in.mac_address,
-        name=None,
-        user_id=None
-    )
-    
+    new_device = Device(mac_address=device_in.mac_address, name=None, user_id=None)
     db.add(new_device)
     db.commit()
     db.refresh(new_device)
-    
-    logger.info(f"Register SUKSES - Device {new_device.mac_address} ditambahkan oleh {admin_user.email}")
+
+    logger.info(f"Register SUKSES - Device {new_device.mac_address} oleh {admin_user.email}")
     return new_device
 
 
-# 1. FITUR KLAIM (Gantikan Create)
+# ==========================================
+# 1. KLAIM DEVICE (SUPER ADMIN + ADMIN)
+# ==========================================
 @router.post("/claim", response_model=DeviceResponse)
 @limiter.limit("10/minute")
 def claim_device(
     request: Request,
-    device_in: DeviceClaim, 
+    device_in: DeviceClaim,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    User memindai QR Code (MAC Address) untuk mengklaim alat pabrik.
-    """
-    logger.info(f"User {current_user.email} mencoba klaim device MAC: {device_in.mac_address}")
-    
-    # Cari Device di Database Pabrik
+    """Klaim device via QR Code. Hanya Super Admin dan Admin."""
+    # Cek role: hanya super_admin dan admin yang bisa claim
+    if current_user.role not in [UserRole.SUPER_ADMIN.value, UserRole.ADMIN.value]:
+        raise HTTPException(status_code=403, detail="Hanya Admin yang bisa mengklaim device.")
+
+    logger.info(f"{current_user.role} {current_user.email} mencoba klaim device MAC: {device_in.mac_address}")
+
     device = db.query(Device).filter(Device.mac_address == device_in.mac_address).first()
-
-    # VALIDASI A: Barang Ghoib (Hacker ngasal masukin MAC)
     if not device:
-        logger.warning(f"Klaim GAGAL - MAC tidak terdaftar: {device_in.mac_address} oleh {current_user.email}")
-        raise HTTPException(
-            status_code=404, 
-            detail="Device tidak dikenali! Pastikan Anda memindai QR Code produk asli."
-        )
+        raise HTTPException(status_code=404, detail="Device tidak dikenali! Pastikan Anda memindai QR Code produk asli.")
 
-    # VALIDASI B: Barang Bekas (Sudah ada tuannya)
     if device.user_id is not None:
-        logger.warning(f"Klaim GAGAL - Device sudah diklaim: {device_in.mac_address} oleh {current_user.email}")
-        raise HTTPException(
-            status_code=400, 
-            detail="Device ini sudah diklaim oleh pengguna lain!"
-        )
+        raise HTTPException(status_code=400, detail="Device ini sudah diklaim oleh pengguna lain!")
 
-    # PROSES SAH KEPEMILIKAN
     device.user_id = current_user.id
-    device.name = device_in.name 
-    
+    device.name = device_in.name
     db.commit()
     db.refresh(device)
-    
-    logger.info(f"Klaim SUKSES - Device {device.mac_address} diklaim oleh {current_user.email} dengan nama '{device_in.name}'")
+
+    logger.info(f"Klaim SUKSES - Device {device.mac_address} diklaim oleh {current_user.email}")
     return device
 
-# 2. LIHAT DEVICE SAYA
+
+# ==========================================
+# 2. LIHAT DEVICE (BERDASARKAN ROLE)
+# ==========================================
 @router.get("/", response_model=List[DeviceResponse])
 @limiter.limit("30/minute")
 def read_my_devices(
@@ -112,11 +99,33 @@ def read_my_devices(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    devices = db.query(Device).filter(Device.user_id == current_user.id).all()
-    logger.debug(f"User {current_user.email} mengambil list {len(devices)} device")
+    """
+    List device berdasarkan role:
+    - super_admin: semua device
+    - admin: device miliknya
+    - operator/viewer: device yang di-assign
+    - user: empty list
+    """
+    if current_user.role == UserRole.SUPER_ADMIN.value:
+        devices = db.query(Device).all()
+    elif current_user.role == UserRole.ADMIN.value:
+        devices = db.query(Device).filter(Device.user_id == current_user.id).all()
+    elif current_user.role in [UserRole.OPERATOR.value, UserRole.VIEWER.value]:
+        # Query device yang di-assign ke user ini
+        assigned_device_ids = db.query(DeviceAssignment.device_id).filter(
+            DeviceAssignment.user_id == current_user.id
+        ).scalar_subquery()
+        devices = db.query(Device).filter(Device.id.in_(assigned_device_ids)).all()
+    else:
+        devices = []
+
+    logger.debug(f"User {current_user.email} (role: {current_user.role}) mengambil {len(devices)} device")
     return devices
 
-# 2.5 BARU: LIHAT DEVICE YANG BELUM DIKLAIM (KHUSUS ADMIN)
+
+# ==========================================
+# 2.5 LIHAT DEVICE BELUM DIKLAIM (ADMIN+)
+# ==========================================
 @router.get("/unclaimed", response_model=List[DeviceResponse])
 @limiter.limit("30/minute")
 def get_unclaimed_devices(
@@ -124,71 +133,66 @@ def get_unclaimed_devices(
     db: Session = Depends(get_db),
     admin_user: User = Depends(get_current_admin)
 ):
-    """
-    Mengambil daftar semua device yang belum diklaim (user_id = NULL).
-    KHUSUS ADMIN.
-    """
+    """Daftar device yang belum diklaim. Khusus Admin+."""
     devices = db.query(Device).filter(Device.user_id == None).all()
-    logger.debug(f"Admin {admin_user.email} mengambil list {len(devices)} unclaimed device")
     return devices
 
-# 3. LIHAT DATA SENSOR (GRAFIK)
+
+# ==========================================
+# 3. LIHAT DATA SENSOR (DENGAN ACCESS CHECK)
+# ==========================================
 @router.get("/{device_id}/logs", response_model=List[LogResponse])
 @limiter.limit("60/minute")
 def read_device_logs(
     request: Request,
     device_id: UUID,
-    limit: int = 20, 
+    limit: int = 20,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Batasi limit agar tidak bisa dump seluruh tabel
+    """Lihat history data sensor. Semua role yang punya akses ke device."""
     limit = min(limit, 100)
-    # Pastikan user cuma bisa liat data kandangnya sendiri
-    device = db.query(Device).filter(Device.id == device_id, Device.user_id == current_user.id).first()
-    if not device:
-        logger.warning(f"Akses logs DITOLAK - device_id: {device_id} oleh {current_user.email}")
-        raise HTTPException(status_code=404, detail="Device tidak ditemukan akses ditolak")
+    device = get_device_with_access(device_id, current_user, db)
 
     logs = db.query(SensorLog)\
         .filter(SensorLog.device_id == device_id)\
         .order_by(SensorLog.timestamp.desc())\
         .limit(limit)\
         .all()
-    
+
     logger.debug(f"User {current_user.email} mengambil {len(logs)} logs dari device {device.name}")
     return logs
 
+
+# ==========================================
+# 3.5 KONTROL DEVICE (ADMIN + OPERATOR)
+# ==========================================
 @router.post("/{device_id}/control")
 @limiter.limit("30/minute")
 def control_device(
     request: Request,
     device_id: UUID,
-    command: DeviceControl, # Pake schema yang baru kita buat
+    command: DeviceControl,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    logger.info(f"User {current_user.email} mengirim kontrol ke device_id: {device_id}, component: {command.component}, state: {command.state}")
-    
-    # 1. Cek Kepemilikan (SECURITY CHECK)
-    # Jangan sampe orang lain iseng matiin kipas lo!
-    device = db.query(Device).filter(Device.id == device_id, Device.user_id == current_user.id).first()
-    
-    if not device:
-        logger.warning(f"Kontrol DITOLAK - device_id: {device_id} bukan milik {current_user.email}")
-        raise HTTPException(status_code=404, detail="Device tidak ditemukan atau akses ditolak")
+    """Kontrol device. Hanya Super Admin, Admin (pemilik), dan Operator (assigned)."""
+    logger.info(f"User {current_user.email} mengirim kontrol ke device_id: {device_id}")
 
-    # 2. Kirim perintah via shared MQTT client
+    device = check_can_control_device(device_id, current_user, db)
+
     try:
         publish_control(device.mac_address, command.component, command.state)
-        
-        logger.info(f"Kontrol SUKSES - {command.component} {'ON' if command.state else 'OFF'} ke {device.name} (MAC: {device.mac_address})")
+        logger.info(f"Kontrol SUKSES - {command.component} {'ON' if command.state else 'OFF'} ke {device.name}")
         return {"status": "success", "message": f"Perintah {command.component} dikirim ke {device.name}"}
-
     except Exception as e:
-        logger.error(f"Kontrol GAGAL - MQTT Error untuk device {device.name}: {str(e)}")
-        raise HTTPException(status_code=500, detail="Gagal mengirim perintah ke device. Silakan coba lagi.")
-    
+        logger.error(f"Kontrol GAGAL - MQTT Error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Gagal mengirim perintah ke device.")
+
+
+# ==========================================
+# 4. LIHAT ALERTS (DENGAN ACCESS CHECK)
+# ==========================================
 @router.get("/{device_id}/alerts", response_model=List[LogResponse])
 @limiter.limit("60/minute")
 def get_device_alerts(
@@ -197,30 +201,20 @@ def get_device_alerts(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Menampilkan daftar riwayat kondisi bahaya di kandang.
-    """
-    # Security Check: Pastikan device milik user yang login
-    device = db.query(Device).filter(Device.id == device_id, Device.user_id == current_user.id).first()
-    if not device:
-        logger.warning(f"Akses alerts DITOLAK - device_id: {device_id} oleh {current_user.email}")
-        raise HTTPException(status_code=404, detail="Device tidak ditemukan atau akses ditolak")
+    """Lihat riwayat alert. Semua role yang punya akses ke device."""
+    device = get_device_with_access(device_id, current_user, db)
 
     alerts = db.query(SensorLog)\
-        .filter(
-            SensorLog.device_id == device_id, 
-            SensorLog.is_alert == True # Cuma ambil yang bahaya
-        )\
+        .filter(SensorLog.device_id == device_id, SensorLog.is_alert == True)\
         .order_by(SensorLog.timestamp.desc())\
         .limit(10)\
         .all()
-    
-    logger.debug(f"User {current_user.email} mengambil {len(alerts)} alerts dari device {device.name}")
+
     return alerts
 
 
 # ==========================================
-# 4. STATISTIK RATA-RATA SUHU HARIAN
+# 5. STATISTIK HARIAN (DENGAN ACCESS CHECK)
 # ==========================================
 @router.get("/{device_id}/stats/daily", response_model=DailyTemperatureStatsResponse)
 @limiter.limit("30/minute")
@@ -231,67 +225,17 @@ def get_daily_temperature_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Mengambil statistik rata-rata suhu harian untuk device tertentu.
-    
-    Data di-agregasi per hari dari tabel sensor_logs, meliputi:
-    - Rata-rata, minimum, dan maksimum suhu
-    - Rata-rata kelembaban dan amonia
-    - Jumlah data point (pembacaan sensor)
-    - Jumlah alert yang terpicu
-    
-    **Query Parameter:**
-    - `days`: Jumlah hari ke belakang dari hari ini (default: 7, max: 90)
-    
-    **Contoh:** `GET /devices/{id}/stats/daily?days=30` → statistik 30 hari terakhir
-    """
+    """Statistik rata-rata suhu harian. Semua role yang punya akses ke device."""
     logger.info(f"User {current_user.email} mengambil statistik harian device_id: {device_id}, days: {days}")
-    
-    # =============================================
-    # 1. SECURITY CHECK - Pastikan device milik user
-    # =============================================
-    device = db.query(Device).filter(
-        Device.id == device_id, 
-        Device.user_id == current_user.id
-    ).first()
-    
-    if not device:
-        logger.warning(f"Akses stats DITOLAK - device_id: {device_id} oleh {current_user.email}")
-        raise HTTPException(
-            status_code=404, 
-            detail="Device tidak ditemukan atau akses ditolak"
-        )
 
-    # =============================================
-    # 2. HITUNG RENTANG TANGGAL
-    # =============================================
-    # Pakai UTC supaya konsisten dengan timestamp di database
+    device = get_device_with_access(device_id, current_user, db)
+
     today = datetime.now(timezone.utc).date()
-    start_date = today - timedelta(days=days - 1)  # -1 karena hari ini ikut dihitung
-    
-    # Konversi ke datetime untuk filter query (awal hari start_date 00:00:00 UTC)
+    start_date = today - timedelta(days=days - 1)
     start_datetime = datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.utc)
 
-    # =============================================
-    # 3. QUERY AGREGASI PER HARI
-    # =============================================
-    # Gunakan func.date() untuk extract tanggal dari kolom timestamp
-    # PostgreSQL: DATE(timestamp) → '2026-01-15'
-    #
-    # Query SQL yang dihasilkan kurang lebih:
-    # SELECT 
-    #     DATE(timestamp) as log_date,
-    #     AVG(temperature), MIN(temperature), MAX(temperature),
-    #     AVG(humidity), AVG(ammonia),
-    #     COUNT(*),
-    #     SUM(CASE WHEN is_alert THEN 1 ELSE 0 END)
-    # FROM sensor_logs
-    # WHERE device_id = :id AND timestamp >= :start
-    # GROUP BY DATE(timestamp)
-    # ORDER BY log_date ASC
-    
     log_date = func.date(SensorLog.timestamp, type_=String).label("log_date")
-    
+
     daily_stats = db.query(
         log_date,
         func.avg(SensorLog.temperature).label("avg_temperature"),
@@ -304,22 +248,14 @@ def get_daily_temperature_stats(
     ).filter(
         SensorLog.device_id == device_id,
         SensorLog.timestamp >= start_datetime
-    ).group_by(
-        log_date
-    ).order_by(
-        log_date.asc()
-    ).all()
+    ).group_by(log_date).order_by(log_date.asc()).all()
 
-    # =============================================
-    # 4. TRANSFORM HASIL QUERY KE SCHEMA PYDANTIC
-    # =============================================
     statistics = []
     for row in daily_stats:
-        # log_date bisa berupa string "2026-04-24" (SQLite) atau date object (PostgreSQL)
         log_date_value = row.log_date
         if isinstance(log_date_value, str):
             log_date_value = date_type.fromisoformat(log_date_value)
-        
+
         stat = DailyTemperatureStats(
             date=log_date_value,
             avg_temperature=row.avg_temperature or 0.0,
@@ -332,25 +268,22 @@ def get_daily_temperature_stats(
         )
         statistics.append(stat)
 
-    # =============================================
-    # 5. BUNGKUS DALAM RESPONSE WRAPPER
-    # =============================================
     response = DailyTemperatureStatsResponse(
         device_id=device.id,
         device_name=device.name,
         period_start=start_date,
         period_end=today,
-        total_days=len(statistics),  # Jumlah hari yang BENAR-BENAR ada datanya
+        total_days=len(statistics),
         statistics=statistics
     )
 
-    logger.info(
-        f"Stats SUKSES - Device '{device.name}': {len(statistics)} hari data "
-        f"dari {start_date} s/d {today} untuk {current_user.email}"
-    )
+    logger.info(f"Stats SUKSES - Device '{device.name}': {len(statistics)} hari data")
     return response
 
 
+# ==========================================
+# 6. UNCLAIM DEVICE (SUPER ADMIN + ADMIN PEMILIK)
+# ==========================================
 @router.post("/{device_id}/unclaim")
 @limiter.limit("10/minute")
 def unclaim_device(
@@ -359,43 +292,35 @@ def unclaim_device(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Melepaskan kepemilikan device. 
-    Device akan kembali menjadi 'Available' untuk diklaim orang lain.
-    """
-    logger.info(f"User {current_user.email} mencoba unclaim device_id: {device_id}")
-    
-    # 1. Cek dulu: Bener gak ini device milik user yang login?
-    # Security Check: Jangan sampe user A bisa unclaim device user B!
-    device = db.query(Device).filter(
-        Device.id == device_id, 
-        Device.user_id == current_user.id
-    ).first()
+    """Lepas kepemilikan device. Hanya Super Admin atau Admin pemilik."""
+    if current_user.role not in [UserRole.SUPER_ADMIN.value, UserRole.ADMIN.value]:
+        raise HTTPException(status_code=403, detail="Hanya Admin yang bisa unclaim device.")
+
+    # Super Admin bisa unclaim device siapapun
+    if current_user.role == UserRole.SUPER_ADMIN.value:
+        device = db.query(Device).filter(Device.id == device_id).first()
+    else:
+        device = db.query(Device).filter(Device.id == device_id, Device.user_id == current_user.id).first()
 
     if not device:
-        logger.warning(f"Unclaim DITOLAK - device_id: {device_id} bukan milik {current_user.email}")
-        raise HTTPException(
-            status_code=404, 
-            detail="Device tidak ditemukan atau bukan milik Anda!"
-        )
+        raise HTTPException(status_code=404, detail="Device tidak ditemukan atau bukan milik Anda!")
 
     old_name = device.name
-    old_mac = device.mac_address
-    
-    # 2. Proses Unclaim (Reset ke Pengaturan Pabrik)
-    device.user_id = None  # Copot User ID (Jadi NULL)
-    device.name = None     # Hapus nama kandang user (Reset)
-    
-    # Opsional: Apakah mau hapus log history juga? 
-    # Buat PKL, mending jangan dihapus biar datanya tetep ada buat laporan.
-    # Tapi kalau mau privasi, log harusnya dihapus.
-    
+
+    # Hapus semua assignment terkait device ini
+    db.query(DeviceAssignment).filter(DeviceAssignment.device_id == device_id).delete()
+
+    device.user_id = None
+    device.name = None
     db.commit()
-    db.refresh(device)
 
-    logger.info(f"Unclaim SUKSES - Device '{old_name}' (MAC: {old_mac}) dilepas oleh {current_user.email}")
-    return {"status": "success", "message": "Device berhasil di-unclaim. Sekarang device bebas diklaim lagi."}
+    logger.info(f"Unclaim SUKSES - Device '{old_name}' dilepas oleh {current_user.email}")
+    return {"status": "success", "message": "Device berhasil di-unclaim."}
 
+
+# ==========================================
+# 7. STATUS DEVICE (DENGAN ACCESS CHECK)
+# ==========================================
 @router.get("/{device_id}/status")
 @limiter.limit("60/minute")
 def get_device_status(
@@ -404,44 +329,183 @@ def get_device_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """
-    Cek apakah device sedang Online atau Offline menggunakan kolom last_heartbeat.
-    """
-    # 1. Cari alatnya
-    device = db.query(Device).filter(Device.id == device_id, Device.user_id == current_user.id).first()
-    
-    if not device:
-        raise HTTPException(status_code=404, detail="Device tidak ditemukan atau akses ditolak")
+    """Cek status online/offline device."""
+    device = get_device_with_access(device_id, current_user, db)
 
-    # 2. Kalau alat belum pernah ngirim heartbeat sama sekali
     if not device.last_heartbeat:
-        return {
-            "device_id": device_id, 
-            "is_online": False, 
-            "last_seen": None, 
-            "message": "Belum ada koneksi dari perangkat"
-        }
+        return {"device_id": device_id, "is_online": False, "last_seen": None, "message": "Belum ada koneksi"}
 
-    # 3. Hitung selisih waktu sekarang dengan last_heartbeat
-    # Pastikan pakai UTC agar tidak bentrok zona waktu server vs lokal
     now = datetime.now(timezone.utc)
-    
-    # Kalau last_heartbeat dari DB nggak punya info timezone (naive), kita ubah jadi UTC
-    if device.last_heartbeat.tzinfo is None:
-        last_heartbeat_aware = device.last_heartbeat.replace(tzinfo=timezone.utc)
-    else:
-        last_heartbeat_aware = device.last_heartbeat
+    last_hb = device.last_heartbeat
+    if last_hb.tzinfo is None:
+        last_hb = last_hb.replace(tzinfo=timezone.utc)
 
-    time_diff = now - last_heartbeat_aware
-    seconds_since_last_seen = time_diff.total_seconds()
+    seconds_since = (now - last_hb).total_seconds()
 
-    # 4. Tentukan Online/Offline (threshold dari config)
     from app.core.config import settings
-    is_online = seconds_since_last_seen <= settings.DEVICE_ONLINE_TIMEOUT_SECONDS
+    is_online = seconds_since <= settings.DEVICE_ONLINE_TIMEOUT_SECONDS
 
     return {
         "device_id": device_id,
         "is_online": is_online,
-        "last_seen": last_heartbeat_aware,
-        "seconds_since_last_seen": round(seconds_since_last_seen)
+        "last_seen": last_hb,
+        "seconds_since_last_seen": round(seconds_since)
     }
+
+
+# ==========================================
+# 8. DEVICE ASSIGNMENT (ADMIN ASSIGN USER KE DEVICE)
+# ==========================================
+@router.post("/{device_id}/assign", response_model=DeviceAssignmentResponse)
+@limiter.limit("20/minute")
+def assign_user_to_device(
+    request: Request,
+    device_id: UUID,
+    assignment: DeviceAssignmentCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Assign user (operator/viewer) ke device.
+    - Super Admin: bisa assign ke device manapun
+    - Admin: hanya bisa assign ke device miliknya
+    """
+    if current_user.role not in [UserRole.SUPER_ADMIN.value, UserRole.ADMIN.value]:
+        raise HTTPException(status_code=403, detail="Hanya Admin yang bisa assign user ke device.")
+
+    # Cek device
+    if current_user.role == UserRole.SUPER_ADMIN.value:
+        device = db.query(Device).filter(Device.id == device_id).first()
+    else:
+        device = db.query(Device).filter(Device.id == device_id, Device.user_id == current_user.id).first()
+
+    if not device:
+        raise HTTPException(status_code=404, detail="Device tidak ditemukan atau bukan milik Anda.")
+
+    # Cek target user
+    target_user = db.query(User).filter(User.id == assignment.user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User tidak ditemukan.")
+
+    # Tidak bisa assign diri sendiri
+    if assignment.user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Tidak bisa assign diri sendiri.")
+
+    # Tidak bisa assign super_admin atau admin
+    if target_user.role in [UserRole.SUPER_ADMIN.value, UserRole.ADMIN.value]:
+        raise HTTPException(status_code=400, detail="Tidak perlu assign Admin/Super Admin — mereka sudah punya akses.")
+
+    # Cek apakah sudah di-assign
+    existing = db.query(DeviceAssignment).filter(
+        DeviceAssignment.device_id == device_id,
+        DeviceAssignment.user_id == assignment.user_id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="User sudah di-assign ke device ini.")
+
+    # Buat assignment
+    new_assignment = DeviceAssignment(
+        device_id=device_id,
+        user_id=assignment.user_id,
+        assigned_by=current_user.id,
+        role=assignment.role,
+    )
+    db.add(new_assignment)
+
+    # Update role user jika masih "user" (default)
+    if target_user.role == UserRole.USER.value:
+        target_user.role = assignment.role
+        logger.info(f"User {target_user.email} otomatis di-upgrade ke {assignment.role}")
+
+    db.commit()
+    db.refresh(new_assignment)
+
+    logger.info(f"Assignment SUKSES - {target_user.email} ({assignment.role}) -> device {device.name} oleh {current_user.email}")
+
+    return DeviceAssignmentResponse(
+        id=new_assignment.id,
+        device_id=new_assignment.device_id,
+        user_id=new_assignment.user_id,
+        user_email=target_user.email,
+        user_name=target_user.full_name,
+        role=new_assignment.role,
+        assigned_by=new_assignment.assigned_by,
+        created_at=new_assignment.created_at,
+    )
+
+
+@router.delete("/{device_id}/assign/{user_id}")
+@limiter.limit("20/minute")
+def unassign_user_from_device(
+    request: Request,
+    device_id: UUID,
+    user_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Hapus assignment user dari device."""
+    if current_user.role not in [UserRole.SUPER_ADMIN.value, UserRole.ADMIN.value]:
+        raise HTTPException(status_code=403, detail="Hanya Admin yang bisa unassign user.")
+
+    # Cek device ownership
+    if current_user.role == UserRole.SUPER_ADMIN.value:
+        device = db.query(Device).filter(Device.id == device_id).first()
+    else:
+        device = db.query(Device).filter(Device.id == device_id, Device.user_id == current_user.id).first()
+
+    if not device:
+        raise HTTPException(status_code=404, detail="Device tidak ditemukan atau bukan milik Anda.")
+
+    assignment = db.query(DeviceAssignment).filter(
+        DeviceAssignment.device_id == device_id,
+        DeviceAssignment.user_id == user_id
+    ).first()
+
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment tidak ditemukan.")
+
+    target_user = db.query(User).filter(User.id == user_id).first()
+    db.delete(assignment)
+    db.commit()
+
+    logger.info(f"Unassign SUKSES - {target_user.email if target_user else user_id} dari device {device.name}")
+    return {"status": "success", "message": "User berhasil di-unassign dari device."}
+
+
+@router.get("/{device_id}/assignments", response_model=List[DeviceAssignmentResponse])
+@limiter.limit("30/minute")
+def get_device_assignments(
+    request: Request,
+    device_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Lihat siapa saja yang di-assign ke device. Khusus Admin+."""
+    if current_user.role not in [UserRole.SUPER_ADMIN.value, UserRole.ADMIN.value]:
+        raise HTTPException(status_code=403, detail="Hanya Admin yang bisa melihat assignments.")
+
+    if current_user.role == UserRole.SUPER_ADMIN.value:
+        device = db.query(Device).filter(Device.id == device_id).first()
+    else:
+        device = db.query(Device).filter(Device.id == device_id, Device.user_id == current_user.id).first()
+
+    if not device:
+        raise HTTPException(status_code=404, detail="Device tidak ditemukan atau bukan milik Anda.")
+
+    assignments = db.query(DeviceAssignment).filter(DeviceAssignment.device_id == device_id).all()
+
+    result = []
+    for a in assignments:
+        user = db.query(User).filter(User.id == a.user_id).first()
+        result.append(DeviceAssignmentResponse(
+            id=a.id,
+            device_id=a.device_id,
+            user_id=a.user_id,
+            user_email=user.email if user else None,
+            user_name=user.full_name if user else None,
+            role=a.role,
+            assigned_by=a.assigned_by,
+            created_at=a.created_at,
+        ))
+
+    return result

@@ -16,11 +16,11 @@ class TestGetDailyTemperatureStats:
     # HAPPY PATH - Berhasil Mengambil Data
     # ==========================================
 
-    def test_get_stats_success_default_days(self, client, auth_headers, test_device_claimed, test_sensor_logs):
+    def test_get_stats_success_default_days(self, client, admin_headers, test_device_claimed, test_sensor_logs):
         """Test mengambil statistik harian dengan parameter default (7 hari)"""
         response = client.get(
             f"/api/devices/{test_device_claimed.id}/stats/daily",
-            headers=auth_headers
+            headers=admin_headers
         )
 
         assert response.status_code == 200
@@ -40,22 +40,22 @@ class TestGetDailyTemperatureStats:
         assert isinstance(data["statistics"], list)
         assert data["total_days"] == len(data["statistics"])
 
-    def test_get_stats_success_custom_days(self, client, auth_headers, test_device_claimed, test_sensor_logs):
+    def test_get_stats_success_custom_days(self, client, admin_headers, test_device_claimed, test_sensor_logs):
         """Test mengambil statistik harian dengan parameter days kustom"""
         response = client.get(
             f"/api/devices/{test_device_claimed.id}/stats/daily?days=30",
-            headers=auth_headers
+            headers=admin_headers
         )
 
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data["statistics"], list)
 
-    def test_get_stats_response_structure(self, client, auth_headers, test_device_claimed, test_sensor_logs):
+    def test_get_stats_response_structure(self, client, admin_headers, test_device_claimed, test_sensor_logs):
         """Test validasi struktur lengkap setiap item statistik harian"""
         response = client.get(
             f"/api/devices/{test_device_claimed.id}/stats/daily",
-            headers=auth_headers
+            headers=admin_headers
         )
 
         assert response.status_code == 200
@@ -86,11 +86,11 @@ class TestGetDailyTemperatureStats:
             assert isinstance(stat["alert_count"], int)
             assert isinstance(stat["status"], str)
 
-    def test_get_stats_status_field_values(self, client, auth_headers, test_device_claimed, test_sensor_logs):
+    def test_get_stats_status_field_values(self, client, admin_headers, test_device_claimed, test_sensor_logs):
         """Test bahwa computed field 'status' hanya berisi nilai yang valid"""
         response = client.get(
             f"/api/devices/{test_device_claimed.id}/stats/daily",
-            headers=auth_headers
+            headers=admin_headers
         )
 
         assert response.status_code == 200
@@ -103,11 +103,11 @@ class TestGetDailyTemperatureStats:
                 f"Harus salah satu dari: {valid_statuses}"
             )
 
-    def test_get_stats_data_points_positive(self, client, auth_headers, test_device_claimed, test_sensor_logs):
+    def test_get_stats_data_points_positive(self, client, admin_headers, test_device_claimed, test_sensor_logs):
         """Test bahwa data_points selalu positif jika ada data"""
         response = client.get(
             f"/api/devices/{test_device_claimed.id}/stats/daily",
-            headers=auth_headers
+            headers=admin_headers
         )
 
         assert response.status_code == 200
@@ -119,11 +119,11 @@ class TestGetDailyTemperatureStats:
                 f"tapi nilainya {stat['data_points']}"
             )
 
-    def test_get_stats_min_less_than_max(self, client, auth_headers, test_device_claimed, test_sensor_logs):
+    def test_get_stats_min_less_than_max(self, client, admin_headers, test_device_claimed, test_sensor_logs):
         """Test bahwa min_temperature selalu <= max_temperature (logika dasar)"""
         response = client.get(
             f"/api/devices/{test_device_claimed.id}/stats/daily",
-            headers=auth_headers
+            headers=admin_headers
         )
 
         assert response.status_code == 200
@@ -135,12 +135,12 @@ class TestGetDailyTemperatureStats:
                 f"({stat['max_temperature']}) pada tanggal {stat['date']}"
             )
 
-    def test_get_stats_period_dates_correct(self, client, auth_headers, test_device_claimed, test_sensor_logs):
+    def test_get_stats_period_dates_correct(self, client, admin_headers, test_device_claimed, test_sensor_logs):
         """Test bahwa period_start dan period_end sesuai dengan parameter days"""
         days = 7
         response = client.get(
             f"/api/devices/{test_device_claimed.id}/stats/daily?days={days}",
-            headers=auth_headers
+            headers=admin_headers
         )
 
         assert response.status_code == 200
@@ -154,11 +154,11 @@ class TestGetDailyTemperatureStats:
         expected_start = (datetime.now(timezone.utc).date() - timedelta(days=days - 1)).isoformat()
         assert data["period_start"] == expected_start
 
-    def test_get_stats_statistics_ordered_ascending(self, client, auth_headers, test_device_claimed, test_sensor_logs):
+    def test_get_stats_statistics_ordered_ascending(self, client, admin_headers, test_device_claimed, test_sensor_logs):
         """Test bahwa statistik diurutkan berdasarkan tanggal ascending (lama → baru)"""
         response = client.get(
             f"/api/devices/{test_device_claimed.id}/stats/daily",
-            headers=auth_headers
+            headers=admin_headers
         )
 
         assert response.status_code == 200
@@ -174,58 +174,58 @@ class TestGetDailyTemperatureStats:
     # QUERY PARAMETER VALIDATION
     # ==========================================
 
-    def test_get_stats_days_minimum(self, client, auth_headers, test_device_claimed, test_sensor_logs):
+    def test_get_stats_days_minimum(self, client, admin_headers, test_device_claimed, test_sensor_logs):
         """Test parameter days dengan nilai minimum (1 hari)"""
         response = client.get(
             f"/api/devices/{test_device_claimed.id}/stats/daily?days=1",
-            headers=auth_headers
+            headers=admin_headers
         )
 
         assert response.status_code == 200
         data = response.json()
         assert data["period_start"] == data["period_end"]  # 1 hari = start == end
 
-    def test_get_stats_days_maximum(self, client, auth_headers, test_device_claimed):
+    def test_get_stats_days_maximum(self, client, admin_headers, test_device_claimed):
         """Test parameter days dengan nilai maksimum (90 hari)"""
         response = client.get(
             f"/api/devices/{test_device_claimed.id}/stats/daily?days=90",
-            headers=auth_headers
+            headers=admin_headers
         )
 
         assert response.status_code == 200
 
-    def test_get_stats_days_below_minimum(self, client, auth_headers, test_device_claimed):
+    def test_get_stats_days_below_minimum(self, client, admin_headers, test_device_claimed):
         """Test parameter days di bawah minimum (harus ditolak oleh validasi FastAPI)"""
         response = client.get(
             f"/api/devices/{test_device_claimed.id}/stats/daily?days=0",
-            headers=auth_headers
+            headers=admin_headers
         )
 
         assert response.status_code == 422  # Validation Error
 
-    def test_get_stats_days_above_maximum(self, client, auth_headers, test_device_claimed):
+    def test_get_stats_days_above_maximum(self, client, admin_headers, test_device_claimed):
         """Test parameter days di atas maksimum (harus ditolak oleh validasi FastAPI)"""
         response = client.get(
             f"/api/devices/{test_device_claimed.id}/stats/daily?days=91",
-            headers=auth_headers
+            headers=admin_headers
         )
 
         assert response.status_code == 422  # Validation Error
 
-    def test_get_stats_days_negative(self, client, auth_headers, test_device_claimed):
+    def test_get_stats_days_negative(self, client, admin_headers, test_device_claimed):
         """Test parameter days dengan nilai negatif"""
         response = client.get(
             f"/api/devices/{test_device_claimed.id}/stats/daily?days=-5",
-            headers=auth_headers
+            headers=admin_headers
         )
 
         assert response.status_code == 422  # Validation Error
 
-    def test_get_stats_days_not_integer(self, client, auth_headers, test_device_claimed):
+    def test_get_stats_days_not_integer(self, client, admin_headers, test_device_claimed):
         """Test parameter days dengan tipe data bukan integer"""
         response = client.get(
             f"/api/devices/{test_device_claimed.id}/stats/daily?days=abc",
-            headers=auth_headers
+            headers=admin_headers
         )
 
         assert response.status_code == 422  # Validation Error
@@ -234,23 +234,23 @@ class TestGetDailyTemperatureStats:
     # DEVICE NOT FOUND - ID Tidak Ada di Database
     # ==========================================
 
-    def test_get_stats_device_not_found(self, client, auth_headers):
+    def test_get_stats_device_not_found(self, client, admin_headers):
         """Test mengambil statistik dari device ID yang tidak ada di database"""
         fake_id = uuid.uuid4()
         response = client.get(
             f"/api/devices/{fake_id}/stats/daily",
-            headers=auth_headers
+            headers=admin_headers
         )
 
         assert response.status_code == 404
         assert "tidak ditemukan" in response.json()["detail"].lower() or \
                "akses ditolak" in response.json()["detail"].lower()
 
-    def test_get_stats_device_invalid_uuid(self, client, auth_headers):
+    def test_get_stats_device_invalid_uuid(self, client, admin_headers):
         """Test mengambil statistik dengan format UUID yang tidak valid"""
         response = client.get(
             "/api/devices/bukan-uuid-valid/stats/daily",
-            headers=auth_headers
+            headers=admin_headers
         )
 
         assert response.status_code == 422  # Validation Error (UUID format)
@@ -259,20 +259,20 @@ class TestGetDailyTemperatureStats:
     # SECURITY CHECK - Akses Device Milik User Lain
     # ==========================================
 
-    def test_get_stats_device_not_owned(self, client, auth_headers, test_device_unclaimed):
+    def test_get_stats_device_not_owned(self, client, admin_headers, test_device_unclaimed):
         """Test akses statistik dari device yang belum diklaim (bukan milik user)"""
         response = client.get(
             f"/api/devices/{test_device_unclaimed.id}/stats/daily",
-            headers=auth_headers
+            headers=admin_headers
         )
 
         assert response.status_code == 404  # Akses ditolak (sama seperti not found)
 
-    def test_get_stats_device_owned_by_other(self, client, auth_headers, test_device_other_user):
+    def test_get_stats_device_owned_by_other(self, client, admin_headers, test_device_other_user):
         """Test akses statistik dari device milik user lain (harus ditolak)"""
         response = client.get(
             f"/api/devices/{test_device_other_user.id}/stats/daily",
-            headers=auth_headers
+            headers=admin_headers
         )
 
         assert response.status_code == 404  # Security: tidak bocorkan info bahwa device ada
@@ -298,11 +298,11 @@ class TestGetDailyTemperatureStats:
     # DATA KOSONG - Tidak Ada Sensor Log di Rentang Tanggal
     # ==========================================
 
-    def test_get_stats_empty_data(self, client, auth_headers, test_device_claimed_no_logs):
+    def test_get_stats_empty_data(self, client, admin_headers, test_device_claimed_no_logs):
         """Test statistik ketika device tidak punya sensor log sama sekali"""
         response = client.get(
             f"/api/devices/{test_device_claimed_no_logs.id}/stats/daily",
-            headers=auth_headers
+            headers=admin_headers
         )
 
         assert response.status_code == 200
@@ -313,11 +313,11 @@ class TestGetDailyTemperatureStats:
         assert data["total_days"] == 0
         assert data["device_id"] == str(test_device_claimed_no_logs.id)
 
-    def test_get_stats_empty_data_has_correct_wrapper(self, client, auth_headers, test_device_claimed_no_logs):
+    def test_get_stats_empty_data_has_correct_wrapper(self, client, admin_headers, test_device_claimed_no_logs):
         """Test bahwa response wrapper tetap lengkap meskipun data kosong"""
         response = client.get(
             f"/api/devices/{test_device_claimed_no_logs.id}/stats/daily?days=7",
-            headers=auth_headers
+            headers=admin_headers
         )
 
         assert response.status_code == 200
@@ -335,14 +335,14 @@ class TestGetDailyTemperatureStats:
         assert data["total_days"] == 0
         assert data["statistics"] == []
 
-    def test_get_stats_no_data_in_range(self, client, auth_headers, test_device_claimed, test_sensor_logs_old):
+    def test_get_stats_no_data_in_range(self, client, admin_headers, test_device_claimed, test_sensor_logs_old):
         """
         Test statistik ketika sensor log ada tapi di luar rentang tanggal yang diminta.
         Misal: data ada 6 bulan lalu, tapi user minta 7 hari terakhir.
         """
         response = client.get(
             f"/api/devices/{test_device_claimed.id}/stats/daily?days=1",
-            headers=auth_headers
+            headers=admin_headers
         )
 
         assert response.status_code == 200

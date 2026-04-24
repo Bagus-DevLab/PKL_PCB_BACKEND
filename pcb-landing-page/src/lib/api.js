@@ -70,6 +70,12 @@ export const deviceApi = {
   register: (macAddress) =>
     api.post("/devices/register", { mac_address: macAddress }),
   getUnclaimed: () => api.get("/devices/unclaimed"),
+  assignUser: (deviceId, userId, role) =>
+    api.post(`/devices/${deviceId}/assign`, { user_id: userId, role }),
+  unassignUser: (deviceId, userId) =>
+    api.delete(`/devices/${deviceId}/assign/${userId}`),
+  getAssignments: (deviceId) =>
+    api.get(`/devices/${deviceId}/assignments`),
 };
 
 export default api;

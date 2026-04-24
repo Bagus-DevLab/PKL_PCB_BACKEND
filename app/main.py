@@ -43,20 +43,25 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("Production mode: pastikan 'alembic upgrade head' sudah dijalankan")
     
-    # Seed Admin Pertama (jika INITIAL_ADMIN_EMAIL di-set di .env)
+    # Seed Super Admin Pertama (jika INITIAL_ADMIN_EMAIL di-set di .env)
     if settings.INITIAL_ADMIN_EMAIL:
         db = SessionLocal()
         try:
             admin = db.query(User).filter(User.email == settings.INITIAL_ADMIN_EMAIL).first()
-            if admin and admin.role != UserRole.ADMIN.value:
-                admin.role = UserRole.ADMIN.value
+            if admin and admin.role not in [UserRole.SUPER_ADMIN.value, UserRole.ADMIN.value]:
+                admin.role = UserRole.SUPER_ADMIN.value
                 db.commit()
-                logger.info(f"User {admin.email} dipromosikan menjadi admin (dari INITIAL_ADMIN_EMAIL)")
+                logger.info(f"User {admin.email} dipromosikan menjadi super_admin (dari INITIAL_ADMIN_EMAIL)")
+            elif admin and admin.role == UserRole.ADMIN.value:
+                # Upgrade admin lama ke super_admin
+                admin.role = UserRole.SUPER_ADMIN.value
+                db.commit()
+                logger.info(f"User {admin.email} di-upgrade dari admin ke super_admin (dari INITIAL_ADMIN_EMAIL)")
             elif admin:
-                logger.debug(f"Admin {admin.email} sudah memiliki role admin")
+                logger.debug(f"Super Admin {admin.email} sudah memiliki role {admin.role}")
             else:
                 logger.info(f"INITIAL_ADMIN_EMAIL ({settings.INITIAL_ADMIN_EMAIL}) belum terdaftar. "
-                           f"Role admin akan di-set otomatis saat user tersebut login pertama kali.")
+                           f"Role super_admin akan di-set otomatis saat user tersebut login pertama kali.")
         finally:
             db.close()
     

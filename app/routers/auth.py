@@ -52,11 +52,11 @@ async def firebase_login(request: Request, data: FirebaseLoginRequest, db: Sessi
         
         # 3. Kalau belum ada (User Baru Register di Flutter), kita otomatis simpan ke DB
         if not user_db:
-            # Tentukan role: jika email cocok dengan INITIAL_ADMIN_EMAIL, jadikan admin
+            # Tentukan role: jika email cocok dengan INITIAL_ADMIN_EMAIL, jadikan super_admin
             initial_role = UserRole.USER.value
             if settings.INITIAL_ADMIN_EMAIL and email == settings.INITIAL_ADMIN_EMAIL:
-                initial_role = UserRole.ADMIN.value
-                logger.info(f"User baru {email} otomatis dijadikan admin (INITIAL_ADMIN_EMAIL)")
+                initial_role = UserRole.SUPER_ADMIN.value
+                logger.info(f"User baru {email} otomatis dijadikan super_admin (INITIAL_ADMIN_EMAIL)")
             
             logger.info(f"User baru terdaftar via Firebase: {email} (role: {initial_role})")
             new_user = User(

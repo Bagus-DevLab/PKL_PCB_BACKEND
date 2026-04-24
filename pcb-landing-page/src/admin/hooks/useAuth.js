@@ -29,8 +29,8 @@ export function useAuth() {
         const response = await userApi.getMe();
         const backendUser = response.data;
 
-        // Pastikan role masih admin
-        if (backendUser.role === "admin") {
+        // Pastikan role masih admin atau super_admin
+        if (backendUser.role === "admin" || backendUser.role === "super_admin") {
           // Update localStorage dengan data terbaru dari backend
           localStorage.setItem("user_info", JSON.stringify(backendUser));
           setUser(backendUser);
@@ -70,7 +70,7 @@ export function useAuth() {
       const meResponse = await userApi.getMe();
       const fullUser = meResponse.data;
 
-      if (fullUser.role !== "admin") {
+      if (fullUser.role !== "admin" && fullUser.role !== "super_admin") {
         localStorage.removeItem("access_token");
         await signOut(auth);
         throw new Error("Akses ditolak. Akun ini bukan admin.");
@@ -105,7 +105,7 @@ export function useAuth() {
     setUser(null);
   }, []);
 
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin";
   const isAuthenticated = !!user && !!localStorage.getItem("access_token");
 
   return {

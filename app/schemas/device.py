@@ -6,6 +6,31 @@ import re
 
 
 # ==========================================
+# DEVICE ASSIGNMENT SCHEMAS
+# ==========================================
+
+class DeviceAssignmentCreate(BaseModel):
+    """Schema untuk assign user ke device"""
+    user_id: UUID
+    role: Literal["operator", "viewer"]
+
+
+class DeviceAssignmentResponse(BaseModel):
+    """Schema response untuk device assignment"""
+    id: UUID
+    device_id: UUID
+    user_id: UUID
+    user_email: Optional[str] = None
+    user_name: Optional[str] = None
+    role: str
+    assigned_by: UUID
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ==========================================
 # SHARED VALIDATORS
 # ==========================================
 

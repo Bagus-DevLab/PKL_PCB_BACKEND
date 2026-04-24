@@ -26,12 +26,12 @@ class UserResponse(BaseModel):
     picture: Optional[str] = None
     provider: str
     is_active: bool
-    role: str  # "admin" atau "user"
+    role: str
 
     class Config:
         from_attributes = True
 
 
 class UpdateUserRole(BaseModel):
-    """Schema untuk mengubah role user (khusus admin)"""
-    role: Literal["admin", "user"]
+    """Schema untuk mengubah role user"""
+    role: Literal["super_admin", "admin", "operator", "viewer", "user"]
