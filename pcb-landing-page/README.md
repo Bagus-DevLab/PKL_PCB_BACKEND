@@ -1,16 +1,45 @@
-# React + Vite
+# PCB Smart Kandang - Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Landing page + Admin dashboard untuk platform IoT Smart Kandang.
 
-Currently, two official plugins are available:
+Bagian dari monorepo [PKL_PCB_BACKEND](https://github.com/Bagus-DevLab/PKL_PCB_BACKEND).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Tech Stack
 
-## React Compiler
+- React 19 + Vite
+- Tailwind CSS v4 + shadcn/ui
+- Framer Motion (animasi)
+- Recharts (chart dashboard)
+- Firebase Web SDK (admin auth)
+- Axios (API client)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Development
 
-## Expanding the ESLint configuration
+```bash
+cp .env.example .env
+# Edit .env dengan Firebase config
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+npm install
+npm run dev
+```
+
+Frontend dev server berjalan di `http://localhost:5173`.
+Backend harus running di `http://localhost:8001` (via Docker).
+
+## Build
+
+```bash
+npm run build
+```
+
+Output di `dist/`. Di production, build dilakukan otomatis oleh Dockerfile multi-stage di root project.
+
+## Halaman
+
+| Route | Deskripsi |
+|-------|-----------|
+| `/` | Landing page (publik) |
+| `/admin/login` | Login admin (Firebase email/password) |
+| `/admin/dashboard` | Dashboard overview (admin only) |
+| `/admin/users` | Kelola user + role (admin only) |
+| `/admin/devices` | Register + unclaimed devices (admin only) |
