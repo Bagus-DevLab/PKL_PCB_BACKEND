@@ -58,6 +58,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"  # Abaikan variabel yang tidak didefinisikan (misal VITE_FIREBASE_*)
     
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

@@ -22,10 +22,10 @@ volumes:
     # PROTEKSI: Volume ditandai external agar tidak bisa dihapus
     # oleh 'docker compose down -v' secara tidak sengaja.
     #
-    # Volume harus dibuat manual terlebih dahulu:
-    #   docker volume create pkl-pcb_postgres_data
+    # Volume ini sudah ada di VPS dengan nama 'api-pcb_postgres_data'
+    # (dibuat oleh docker compose project 'api-pcb' sebelumnya).
     #
     # Jika volume belum ada, docker compose akan error — ini DISENGAJA
     # sebagai safety net agar tidak membuat volume baru yang kosong.
     external: true
-    name: pkl-pcb_postgres_data
+    name: api-pcb_postgres_data
