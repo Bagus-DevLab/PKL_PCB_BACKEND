@@ -1,5 +1,5 @@
 """
-Unit tests untuk endpoint Device (/devices).
+Unit tests untuk endpoint Device (/api/devices).
 """
 
 import pytest
@@ -12,7 +12,7 @@ class TestClaimDevice:
     def test_claim_device_success(self, client, auth_headers, test_device_unclaimed):
         """Test klaim device yang tersedia berhasil"""
         response = client.post(
-            "/devices/claim",
+            "/api/devices/claim",
             json={
                 "mac_address": test_device_unclaimed.mac_address,
                 "name": "Kandang Baru Saya"
@@ -29,7 +29,7 @@ class TestClaimDevice:
     def test_claim_device_not_found(self, client, auth_headers):
         """Test klaim device dengan MAC address tidak terdaftar"""
         response = client.post(
-            "/devices/claim",
+            "/api/devices/claim",
             json={
                 "mac_address": "FF:FF:FF:FF:FF:FF",  # MAC tidak ada di DB
                 "name": "Device Palsu"
@@ -43,7 +43,7 @@ class TestClaimDevice:
     def test_claim_device_already_claimed(self, client, auth_headers, test_device_claimed):
         """Test klaim device yang sudah diklaim orang lain"""
         response = client.post(
-            "/devices/claim",
+            "/api/devices/claim",
             json={
                 "mac_address": test_device_claimed.mac_address,
                 "name": "Coba Ambil Punya Orang"
@@ -57,7 +57,7 @@ class TestClaimDevice:
     def test_claim_device_without_auth(self, client, test_device_unclaimed):
         """Test klaim device tanpa token (harus gagal)"""
         response = client.post(
-            "/devices/claim",
+            "/api/devices/claim",
             json={
                 "mac_address": test_device_unclaimed.mac_address,
                 "name": "Kandang Tanpa Login"
@@ -72,7 +72,7 @@ class TestReadMyDevices:
     
     def test_get_devices_success(self, client, auth_headers, test_device_claimed):
         """Test mendapatkan list device milik user"""
-        response = client.get("/devices/", headers=auth_headers)
+        response = client.get("/api/devices/", headers=auth_headers)
         
         assert response.status_code == 200
         data = response.json()
@@ -85,7 +85,7 @@ class TestReadMyDevices:
     
     def test_get_devices_empty(self, client, auth_headers):
         """Test mendapatkan list device ketika user belum punya device"""
-        response = client.get("/devices/", headers=auth_headers)
+        response = client.get("/api/devices/", headers=auth_headers)
         
         assert response.status_code == 200
         data = response.json()
@@ -93,13 +93,13 @@ class TestReadMyDevices:
     
     def test_get_devices_without_auth(self, client):
         """Test akses list device tanpa token"""
-        response = client.get("/devices/")
+        response = client.get("/api/devices/")
         
         assert response.status_code == 401
     
     def test_get_devices_with_online_status(self, client, auth_headers, test_device_claimed):
         """Test response memiliki field is_online"""
-        response = client.get("/devices/", headers=auth_headers)
+        response = client.get("/api/devices/", headers=auth_headers)
         
         assert response.status_code == 200
         data = response.json()
@@ -114,7 +114,7 @@ class TestReadDeviceLogs:
     def test_get_logs_success(self, client, auth_headers, test_device_claimed, test_sensor_logs):
         """Test mendapatkan sensor logs dari device"""
         response = client.get(
-            f"/devices/{test_device_claimed.id}/logs",
+            f"/api/devices/{test_device_claimed.id}/logs",
             headers=auth_headers
         )
         
@@ -126,7 +126,7 @@ class TestReadDeviceLogs:
     def test_get_logs_with_limit(self, client, auth_headers, test_device_claimed, test_sensor_logs):
         """Test mendapatkan logs dengan limit"""
         response = client.get(
-            f"/devices/{test_device_claimed.id}/logs?limit=3",
+            f"/api/devices/{test_device_claimed.id}/logs?limit=3",
             headers=auth_headers
         )
         
@@ -138,7 +138,7 @@ class TestReadDeviceLogs:
         """Test akses logs dari device yang tidak ada"""
         fake_id = uuid.uuid4()
         response = client.get(
-            f"/devices/{fake_id}/logs",
+            f"/api/devices/{fake_id}/logs",
             headers=auth_headers
         )
         
@@ -147,7 +147,7 @@ class TestReadDeviceLogs:
     def test_get_logs_not_owned(self, client, auth_headers, test_device_unclaimed):
         """Test akses logs dari device yang bukan milik user"""
         response = client.get(
-            f"/devices/{test_device_unclaimed.id}/logs",
+            f"/api/devices/{test_device_unclaimed.id}/logs",
             headers=auth_headers
         )
         
@@ -160,7 +160,7 @@ class TestGetDeviceAlerts:
     def test_get_alerts_success(self, client, auth_headers, test_device_claimed, test_sensor_logs):
         """Test mendapatkan alert logs"""
         response = client.get(
-            f"/devices/{test_device_claimed.id}/alerts",
+            f"/api/devices/{test_device_claimed.id}/alerts",
             headers=auth_headers
         )
         
@@ -175,7 +175,7 @@ class TestGetDeviceAlerts:
     def test_get_alerts_device_not_owned(self, client, auth_headers, test_device_unclaimed):
         """Test akses alerts dari device bukan milik user"""
         response = client.get(
-            f"/devices/{test_device_unclaimed.id}/alerts",
+            f"/api/devices/{test_device_unclaimed.id}/alerts",
             headers=auth_headers
         )
         
@@ -188,7 +188,7 @@ class TestControlDevice:
     def test_control_device_not_owned(self, client, auth_headers, test_device_unclaimed):
         """Test kontrol device yang bukan milik user"""
         response = client.post(
-            f"/devices/{test_device_unclaimed.id}/control",
+            f"/api/devices/{test_device_unclaimed.id}/control",
             json={"component": "kipas", "state": True},
             headers=auth_headers
         )
@@ -199,7 +199,7 @@ class TestControlDevice:
         """Test kontrol device yang tidak ada"""
         fake_id = uuid.uuid4()
         response = client.post(
-            f"/devices/{fake_id}/control",
+            f"/api/devices/{fake_id}/control",
             json={"component": "lampu", "state": False},
             headers=auth_headers
         )
@@ -209,7 +209,7 @@ class TestControlDevice:
     def test_control_device_without_auth(self, client, test_device_claimed):
         """Test kontrol device tanpa autentikasi"""
         response = client.post(
-            f"/devices/{test_device_claimed.id}/control",
+            f"/api/devices/{test_device_claimed.id}/control",
             json={"component": "kipas", "state": True}
         )
         
@@ -222,7 +222,7 @@ class TestUnclaimDevice:
     def test_unclaim_device_success(self, client, auth_headers, test_device_claimed):
         """Test unclaim device milik sendiri berhasil"""
         response = client.post(
-            f"/devices/{test_device_claimed.id}/unclaim",
+            f"/api/devices/{test_device_claimed.id}/unclaim",
             headers=auth_headers
         )
         
@@ -234,7 +234,7 @@ class TestUnclaimDevice:
     def test_unclaim_device_not_owned(self, client, auth_headers, test_device_unclaimed):
         """Test unclaim device yang bukan milik user"""
         response = client.post(
-            f"/devices/{test_device_unclaimed.id}/unclaim",
+            f"/api/devices/{test_device_unclaimed.id}/unclaim",
             headers=auth_headers
         )
         
@@ -243,7 +243,7 @@ class TestUnclaimDevice:
     def test_unclaim_device_without_auth(self, client, test_device_claimed):
         """Test unclaim tanpa autentikasi"""
         response = client.post(
-            f"/devices/{test_device_claimed.id}/unclaim"
+            f"/api/devices/{test_device_claimed.id}/unclaim"
         )
         
         assert response.status_code == 401

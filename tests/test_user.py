@@ -11,7 +11,7 @@ class TestReadCurrentUser:
     
     def test_get_current_user_success(self, client, auth_headers, test_user):
         """Test mendapatkan data user yang sedang login"""
-        response = client.get("/users/me", headers=auth_headers)
+        response = client.get("/api/users/me", headers=auth_headers)
         
         assert response.status_code == 200
         data = response.json()
@@ -21,14 +21,14 @@ class TestReadCurrentUser:
     
     def test_get_current_user_without_auth(self, client):
         """Test akses /users/me tanpa token"""
-        response = client.get("/users/me")
+        response = client.get("/api/users/me")
         
         assert response.status_code == 401  # Unauthorized
     
     def test_get_current_user_invalid_token(self, client):
         """Test akses /users/me dengan token invalid"""
         headers = {"Authorization": "Bearer invalid.token.here"}
-        response = client.get("/users/me", headers=headers)
+        response = client.get("/api/users/me", headers=headers)
         
         assert response.status_code == 401  # Unauthorized
     
@@ -44,14 +44,14 @@ class TestReadCurrentUser:
         )
         
         headers = {"Authorization": f"Bearer {expired_token}"}
-        response = client.get("/users/me", headers=headers)
+        response = client.get("/api/users/me", headers=headers)
         
         assert response.status_code == 401
     
     def test_get_current_user_malformed_token(self, client):
         """Test akses dengan token format salah"""
         headers = {"Authorization": "Bearer abc"}
-        response = client.get("/users/me", headers=headers)
+        response = client.get("/api/users/me", headers=headers)
         
         assert response.status_code == 401
     
@@ -59,7 +59,7 @@ class TestReadCurrentUser:
         """Test akses tanpa prefix Bearer"""
         # HTTPBearer akan reject ini
         headers = {"Authorization": test_user_token}
-        response = client.get("/users/me", headers=headers)
+        response = client.get("/api/users/me", headers=headers)
         
         assert response.status_code == 401  # Invalid auth format
 
@@ -69,7 +69,7 @@ class TestUserRoleInResponse:
 
     def test_user_has_role_field(self, client, auth_headers, test_user):
         """Test bahwa response /users/me mengandung field role"""
-        response = client.get("/users/me", headers=auth_headers)
+        response = client.get("/api/users/me", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -78,7 +78,7 @@ class TestUserRoleInResponse:
 
     def test_admin_has_admin_role(self, client, admin_headers, test_admin_user):
         """Test bahwa admin user memiliki role 'admin'"""
-        response = client.get("/users/me", headers=admin_headers)
+        response = client.get("/api/users/me", headers=admin_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -91,7 +91,7 @@ class TestUpdateUserRole:
     def test_admin_can_change_user_role(self, client, admin_headers, test_user):
         """Test admin bisa mengubah role user biasa menjadi admin"""
         response = client.patch(
-            f"/users/{test_user.id}/role",
+            f"/api/users/{test_user.id}/role",
             json={"role": "admin"},
             headers=admin_headers
         )
@@ -109,7 +109,7 @@ class TestUpdateUserRole:
 
         # Lalu demote
         response = client.patch(
-            f"/users/{test_user.id}/role",
+            f"/api/users/{test_user.id}/role",
             json={"role": "user"},
             headers=admin_headers
         )
@@ -120,7 +120,7 @@ class TestUpdateUserRole:
     def test_admin_cannot_change_own_role(self, client, admin_headers, test_admin_user):
         """Test admin tidak bisa mengubah role dirinya sendiri"""
         response = client.patch(
-            f"/users/{test_admin_user.id}/role",
+            f"/api/users/{test_admin_user.id}/role",
             json={"role": "user"},
             headers=admin_headers
         )
@@ -131,7 +131,7 @@ class TestUpdateUserRole:
     def test_regular_user_cannot_change_role(self, client, auth_headers, test_admin_user):
         """Test user biasa tidak bisa mengubah role siapapun"""
         response = client.patch(
-            f"/users/{test_admin_user.id}/role",
+            f"/api/users/{test_admin_user.id}/role",
             json={"role": "user"},
             headers=auth_headers
         )
@@ -141,7 +141,7 @@ class TestUpdateUserRole:
     def test_change_role_invalid_role_value(self, client, admin_headers, test_user):
         """Test mengubah role dengan value yang tidak valid"""
         response = client.patch(
-            f"/users/{test_user.id}/role",
+            f"/api/users/{test_user.id}/role",
             json={"role": "superadmin"},
             headers=admin_headers
         )
@@ -152,7 +152,7 @@ class TestUpdateUserRole:
         """Test mengubah role user yang tidak ada"""
         fake_id = uuid.uuid4()
         response = client.patch(
-            f"/users/{fake_id}/role",
+            f"/api/users/{fake_id}/role",
             json={"role": "admin"},
             headers=admin_headers
         )
@@ -162,7 +162,7 @@ class TestUpdateUserRole:
     def test_change_role_without_auth(self, client, test_user):
         """Test mengubah role tanpa autentikasi"""
         response = client.patch(
-            f"/users/{test_user.id}/role",
+            f"/api/users/{test_user.id}/role",
             json={"role": "admin"}
         )
 
@@ -175,7 +175,7 @@ class TestAdminEndpointAccess:
     def test_regular_user_cannot_register_device(self, client, auth_headers):
         """Test user biasa tidak bisa register device (endpoint admin)"""
         response = client.post(
-            "/devices/register",
+            "/api/devices/register",
             json={"mac_address": "AA:BB:CC:DD:EE:FF"},
             headers=auth_headers
         )
@@ -185,7 +185,7 @@ class TestAdminEndpointAccess:
     def test_admin_can_register_device(self, client, admin_headers):
         """Test admin bisa register device"""
         response = client.post(
-            "/devices/register",
+            "/api/devices/register",
             json={"mac_address": "AB:CD:EF:12:34:56"},
             headers=admin_headers
         )
@@ -196,7 +196,7 @@ class TestAdminEndpointAccess:
     def test_regular_user_cannot_see_unclaimed(self, client, auth_headers):
         """Test user biasa tidak bisa lihat unclaimed devices (endpoint admin)"""
         response = client.get(
-            "/devices/unclaimed",
+            "/api/devices/unclaimed",
             headers=auth_headers
         )
 
@@ -205,7 +205,7 @@ class TestAdminEndpointAccess:
     def test_admin_can_see_unclaimed(self, client, admin_headers):
         """Test admin bisa lihat unclaimed devices"""
         response = client.get(
-            "/devices/unclaimed",
+            "/api/devices/unclaimed",
             headers=admin_headers
         )
 
@@ -218,7 +218,7 @@ class TestHealthCheck:
     
     def test_health_check(self, client):
         """Test health check endpoint"""
-        response = client.get("/")
+        response = client.get("/api/health")
         
         assert response.status_code == 200
         data = response.json()

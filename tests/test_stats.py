@@ -20,7 +20,7 @@ class TestGetDailyTemperatureStats:
     def test_get_stats_success_default_days(self, client, auth_headers, test_device_claimed, test_sensor_logs):
         """Test mengambil statistik harian dengan parameter default (7 hari)"""
         response = client.get(
-            f"/devices/{test_device_claimed.id}/stats/daily",
+            f"/api/devices/{test_device_claimed.id}/stats/daily",
             headers=auth_headers
         )
 
@@ -44,7 +44,7 @@ class TestGetDailyTemperatureStats:
     def test_get_stats_success_custom_days(self, client, auth_headers, test_device_claimed, test_sensor_logs):
         """Test mengambil statistik harian dengan parameter days kustom"""
         response = client.get(
-            f"/devices/{test_device_claimed.id}/stats/daily?days=30",
+            f"/api/devices/{test_device_claimed.id}/stats/daily?days=30",
             headers=auth_headers
         )
 
@@ -55,7 +55,7 @@ class TestGetDailyTemperatureStats:
     def test_get_stats_response_structure(self, client, auth_headers, test_device_claimed, test_sensor_logs):
         """Test validasi struktur lengkap setiap item statistik harian"""
         response = client.get(
-            f"/devices/{test_device_claimed.id}/stats/daily",
+            f"/api/devices/{test_device_claimed.id}/stats/daily",
             headers=auth_headers
         )
 
@@ -90,7 +90,7 @@ class TestGetDailyTemperatureStats:
     def test_get_stats_status_field_values(self, client, auth_headers, test_device_claimed, test_sensor_logs):
         """Test bahwa computed field 'status' hanya berisi nilai yang valid"""
         response = client.get(
-            f"/devices/{test_device_claimed.id}/stats/daily",
+            f"/api/devices/{test_device_claimed.id}/stats/daily",
             headers=auth_headers
         )
 
@@ -107,7 +107,7 @@ class TestGetDailyTemperatureStats:
     def test_get_stats_data_points_positive(self, client, auth_headers, test_device_claimed, test_sensor_logs):
         """Test bahwa data_points selalu positif jika ada data"""
         response = client.get(
-            f"/devices/{test_device_claimed.id}/stats/daily",
+            f"/api/devices/{test_device_claimed.id}/stats/daily",
             headers=auth_headers
         )
 
@@ -123,7 +123,7 @@ class TestGetDailyTemperatureStats:
     def test_get_stats_min_less_than_max(self, client, auth_headers, test_device_claimed, test_sensor_logs):
         """Test bahwa min_temperature selalu <= max_temperature (logika dasar)"""
         response = client.get(
-            f"/devices/{test_device_claimed.id}/stats/daily",
+            f"/api/devices/{test_device_claimed.id}/stats/daily",
             headers=auth_headers
         )
 
@@ -140,7 +140,7 @@ class TestGetDailyTemperatureStats:
         """Test bahwa period_start dan period_end sesuai dengan parameter days"""
         days = 7
         response = client.get(
-            f"/devices/{test_device_claimed.id}/stats/daily?days={days}",
+            f"/api/devices/{test_device_claimed.id}/stats/daily?days={days}",
             headers=auth_headers
         )
 
@@ -158,7 +158,7 @@ class TestGetDailyTemperatureStats:
     def test_get_stats_statistics_ordered_ascending(self, client, auth_headers, test_device_claimed, test_sensor_logs):
         """Test bahwa statistik diurutkan berdasarkan tanggal ascending (lama → baru)"""
         response = client.get(
-            f"/devices/{test_device_claimed.id}/stats/daily",
+            f"/api/devices/{test_device_claimed.id}/stats/daily",
             headers=auth_headers
         )
 
@@ -178,7 +178,7 @@ class TestGetDailyTemperatureStats:
     def test_get_stats_days_minimum(self, client, auth_headers, test_device_claimed, test_sensor_logs):
         """Test parameter days dengan nilai minimum (1 hari)"""
         response = client.get(
-            f"/devices/{test_device_claimed.id}/stats/daily?days=1",
+            f"/api/devices/{test_device_claimed.id}/stats/daily?days=1",
             headers=auth_headers
         )
 
@@ -189,7 +189,7 @@ class TestGetDailyTemperatureStats:
     def test_get_stats_days_maximum(self, client, auth_headers, test_device_claimed):
         """Test parameter days dengan nilai maksimum (90 hari)"""
         response = client.get(
-            f"/devices/{test_device_claimed.id}/stats/daily?days=90",
+            f"/api/devices/{test_device_claimed.id}/stats/daily?days=90",
             headers=auth_headers
         )
 
@@ -198,7 +198,7 @@ class TestGetDailyTemperatureStats:
     def test_get_stats_days_below_minimum(self, client, auth_headers, test_device_claimed):
         """Test parameter days di bawah minimum (harus ditolak oleh validasi FastAPI)"""
         response = client.get(
-            f"/devices/{test_device_claimed.id}/stats/daily?days=0",
+            f"/api/devices/{test_device_claimed.id}/stats/daily?days=0",
             headers=auth_headers
         )
 
@@ -207,7 +207,7 @@ class TestGetDailyTemperatureStats:
     def test_get_stats_days_above_maximum(self, client, auth_headers, test_device_claimed):
         """Test parameter days di atas maksimum (harus ditolak oleh validasi FastAPI)"""
         response = client.get(
-            f"/devices/{test_device_claimed.id}/stats/daily?days=91",
+            f"/api/devices/{test_device_claimed.id}/stats/daily?days=91",
             headers=auth_headers
         )
 
@@ -216,7 +216,7 @@ class TestGetDailyTemperatureStats:
     def test_get_stats_days_negative(self, client, auth_headers, test_device_claimed):
         """Test parameter days dengan nilai negatif"""
         response = client.get(
-            f"/devices/{test_device_claimed.id}/stats/daily?days=-5",
+            f"/api/devices/{test_device_claimed.id}/stats/daily?days=-5",
             headers=auth_headers
         )
 
@@ -225,7 +225,7 @@ class TestGetDailyTemperatureStats:
     def test_get_stats_days_not_integer(self, client, auth_headers, test_device_claimed):
         """Test parameter days dengan tipe data bukan integer"""
         response = client.get(
-            f"/devices/{test_device_claimed.id}/stats/daily?days=abc",
+            f"/api/devices/{test_device_claimed.id}/stats/daily?days=abc",
             headers=auth_headers
         )
 
@@ -239,7 +239,7 @@ class TestGetDailyTemperatureStats:
         """Test mengambil statistik dari device ID yang tidak ada di database"""
         fake_id = uuid.uuid4()
         response = client.get(
-            f"/devices/{fake_id}/stats/daily",
+            f"/api/devices/{fake_id}/stats/daily",
             headers=auth_headers
         )
 
@@ -250,7 +250,7 @@ class TestGetDailyTemperatureStats:
     def test_get_stats_device_invalid_uuid(self, client, auth_headers):
         """Test mengambil statistik dengan format UUID yang tidak valid"""
         response = client.get(
-            "/devices/bukan-uuid-valid/stats/daily",
+            "/api/devices/bukan-uuid-valid/stats/daily",
             headers=auth_headers
         )
 
@@ -263,7 +263,7 @@ class TestGetDailyTemperatureStats:
     def test_get_stats_device_not_owned(self, client, auth_headers, test_device_unclaimed):
         """Test akses statistik dari device yang belum diklaim (bukan milik user)"""
         response = client.get(
-            f"/devices/{test_device_unclaimed.id}/stats/daily",
+            f"/api/devices/{test_device_unclaimed.id}/stats/daily",
             headers=auth_headers
         )
 
@@ -272,7 +272,7 @@ class TestGetDailyTemperatureStats:
     def test_get_stats_device_owned_by_other(self, client, auth_headers, test_device_other_user):
         """Test akses statistik dari device milik user lain (harus ditolak)"""
         response = client.get(
-            f"/devices/{test_device_other_user.id}/stats/daily",
+            f"/api/devices/{test_device_other_user.id}/stats/daily",
             headers=auth_headers
         )
 
@@ -281,7 +281,7 @@ class TestGetDailyTemperatureStats:
     def test_get_stats_without_auth(self, client, test_device_claimed):
         """Test akses statistik tanpa token autentikasi"""
         response = client.get(
-            f"/devices/{test_device_claimed.id}/stats/daily"
+            f"/api/devices/{test_device_claimed.id}/stats/daily"
         )
 
         assert response.status_code == 401  # Unauthorized
@@ -289,7 +289,7 @@ class TestGetDailyTemperatureStats:
     def test_get_stats_with_invalid_token(self, client, test_device_claimed):
         """Test akses statistik dengan token yang tidak valid"""
         response = client.get(
-            f"/devices/{test_device_claimed.id}/stats/daily",
+            f"/api/devices/{test_device_claimed.id}/stats/daily",
             headers={"Authorization": "Bearer token-asal-asalan-ngaco"}
         )
 
@@ -302,7 +302,7 @@ class TestGetDailyTemperatureStats:
     def test_get_stats_empty_data(self, client, auth_headers, test_device_claimed_no_logs):
         """Test statistik ketika device tidak punya sensor log sama sekali"""
         response = client.get(
-            f"/devices/{test_device_claimed_no_logs.id}/stats/daily",
+            f"/api/devices/{test_device_claimed_no_logs.id}/stats/daily",
             headers=auth_headers
         )
 
@@ -317,7 +317,7 @@ class TestGetDailyTemperatureStats:
     def test_get_stats_empty_data_has_correct_wrapper(self, client, auth_headers, test_device_claimed_no_logs):
         """Test bahwa response wrapper tetap lengkap meskipun data kosong"""
         response = client.get(
-            f"/devices/{test_device_claimed_no_logs.id}/stats/daily?days=7",
+            f"/api/devices/{test_device_claimed_no_logs.id}/stats/daily?days=7",
             headers=auth_headers
         )
 
@@ -342,7 +342,7 @@ class TestGetDailyTemperatureStats:
         Misal: data ada 6 bulan lalu, tapi user minta 7 hari terakhir.
         """
         response = client.get(
-            f"/devices/{test_device_claimed.id}/stats/daily?days=1",
+            f"/api/devices/{test_device_claimed.id}/stats/daily?days=1",
             headers=auth_headers
         )
 
