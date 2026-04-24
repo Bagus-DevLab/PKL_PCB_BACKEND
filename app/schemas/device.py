@@ -141,12 +141,11 @@ class DailyTemperatureStats(BaseModel):
         """
         Ringkasan kondisi kandang hari itu berdasarkan rata-rata suhu.
         Threshold disesuaikan dengan standar suhu kandang ayam:
-        - Ideal: 25°C - 30°C
-        - Di luar itu: Waspada atau Bahaya
+        - Normal: 25°C - 30°C
+        - Waspada: 20°C - 25°C atau 30°C - 35°C
+        - Bahaya: di bawah 20°C atau di atas 35°C
         """
-        if self.avg_temperature <= 0:
-            return "Tidak Ada Data"
-        elif 25.0 <= self.avg_temperature <= 30.0:
+        if 25.0 <= self.avg_temperature <= 30.0:
             return "Normal"
         elif 20.0 <= self.avg_temperature < 25.0 or 30.0 < self.avg_temperature <= 35.0:
             return "Waspada"

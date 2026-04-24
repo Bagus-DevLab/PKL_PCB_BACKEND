@@ -97,7 +97,7 @@ class TestGetDailyTemperatureStats:
         assert response.status_code == 200
         data = response.json()
 
-        valid_statuses = {"Normal", "Waspada", "Bahaya", "Tidak Ada Data"}
+        valid_statuses = {"Normal", "Waspada", "Bahaya"}
         for stat in data["statistics"]:
             assert stat["status"] in valid_statuses, (
                 f"Status '{stat['status']}' tidak valid. "

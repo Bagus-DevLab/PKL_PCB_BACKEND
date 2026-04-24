@@ -1,7 +1,7 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, cast, Integer, Date
+from sqlalchemy import func, cast, Integer, String
 from typing import List
 from uuid import UUID
 from slowapi import Limiter
@@ -13,13 +13,9 @@ from app.models.device import Device, SensorLog
 from app.schemas import DeviceClaim, DeviceResponse, LogResponse, DeviceRegister
 from app.dependencies import get_current_user, get_current_admin
 
-import json
-import paho.mqtt.client as mqtt
-from app.core.config import settings
 from app.schemas.device import DeviceControl, DailyTemperatureStats, DailyTemperatureStatsResponse
-from app.core.request_context import get_request_id
 from app.mqtt.publisher import publish_control
-from datetime import datetime, timezone, timedelta, date
+from datetime import date as date_type, datetime, timezone, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -299,7 +295,7 @@ def get_daily_temperature_stats(
     # GROUP BY DATE(timestamp)
     # ORDER BY log_date ASC
     
-    log_date = func.date(SensorLog.timestamp).label("log_date")
+    log_date = func.date(SensorLog.timestamp, type_=String).label("log_date")
     
     daily_stats = db.query(
         log_date,
@@ -324,8 +320,13 @@ def get_daily_temperature_stats(
     # =============================================
     statistics = []
     for row in daily_stats:
+        # log_date bisa berupa string "2026-04-24" (SQLite) atau date object (PostgreSQL)
+        log_date_value = row.log_date
+        if isinstance(log_date_value, str):
+            log_date_value = date_type.fromisoformat(log_date_value)
+        
         stat = DailyTemperatureStats(
-            date=row.log_date,
+            date=log_date_value,
             avg_temperature=row.avg_temperature or 0.0,
             min_temperature=row.min_temperature or 0.0,
             max_temperature=row.max_temperature or 0.0,

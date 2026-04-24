@@ -198,3 +198,79 @@ def test_sensor_logs(db_session, test_device_claimed) -> list:
     
     db_session.commit()
     return logs
+
+
+@pytest.fixture
+def test_device_other_user(db_session) -> Device:
+    """
+    Fixture untuk membuat device milik USER LAIN (bukan test_user).
+    Digunakan untuk test security: user tidak boleh akses device orang lain.
+    """
+    other_user = User(
+        id=uuid.uuid4(),
+        email="otheruser@example.com",
+        full_name="Other User",
+        picture="https://example.com/other.jpg",
+        provider="google",
+        is_active=True
+    )
+    db_session.add(other_user)
+    db_session.commit()
+    db_session.refresh(other_user)
+
+    device = Device(
+        id=uuid.uuid4(),
+        mac_address="FF:EE:DD:CC:BB:AA",
+        name="Kandang Milik Orang Lain",
+        user_id=other_user.id,
+        last_heartbeat=datetime.now(timezone.utc)
+    )
+    db_session.add(device)
+    db_session.commit()
+    db_session.refresh(device)
+    return device
+
+
+@pytest.fixture
+def test_device_claimed_no_logs(db_session, test_user) -> Device:
+    """
+    Fixture untuk device yang SUDAH diklaim user test tapi TANPA sensor log.
+    Digunakan untuk test statistik ketika data kosong.
+    """
+    device = Device(
+        id=uuid.uuid4(),
+        mac_address="99:88:77:66:55:44",
+        name="Kandang Kosong",
+        user_id=test_user.id,
+        last_heartbeat=datetime.now(timezone.utc)
+    )
+    db_session.add(device)
+    db_session.commit()
+    db_session.refresh(device)
+    return device
+
+
+@pytest.fixture
+def test_sensor_logs_old(db_session, test_device_claimed) -> list:
+    """
+    Fixture untuk sensor logs dengan timestamp LAMA (> 90 hari lalu).
+    Digunakan untuk test bahwa query rentang tanggal bekerja dengan benar.
+    """
+    from datetime import timedelta
+
+    old_timestamp = datetime.now(timezone.utc) - timedelta(days=180)
+    logs = []
+    for i in range(3):
+        log = SensorLog(
+            device_id=test_device_claimed.id,
+            temperature=26.0 + i,
+            humidity=65.0 + i,
+            ammonia=8.0 + i,
+            is_alert=False,
+            timestamp=old_timestamp + timedelta(hours=i)
+        )
+        db_session.add(log)
+        logs.append(log)
+
+    db_session.commit()
+    return logs
