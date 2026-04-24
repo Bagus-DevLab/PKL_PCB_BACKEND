@@ -349,9 +349,10 @@ class TestGetDailyTemperatureStats:
         assert response.status_code == 200
         data = response.json()
 
-        # Jika semua log di luar rentang, statistics bisa kosong
-        # (tergantung apakah test_sensor_logs_old memang di luar 1 hari terakhir)
-        assert isinstance(data["statistics"], list)
+        # Semua log dari test_sensor_logs_old berumur 180 hari,
+        # jadi query days=1 (hari ini saja) harus mengembalikan list kosong.
+        assert data["statistics"] == []
+        assert data["total_days"] == 0
 
 
 class TestGetDailyTemperatureStatsFixtures:
