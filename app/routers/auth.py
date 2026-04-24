@@ -11,7 +11,7 @@ import firebase_admin
 from firebase_admin import credentials, auth
 
 from app.database import get_db
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.core.config import settings
 from app.core.security import create_access_token
 
@@ -56,12 +56,19 @@ async def firebase_login(request: Request, data: FirebaseLoginRequest, db: Sessi
         
         # 3. Kalau belum ada (User Baru Register di Flutter), kita otomatis simpan ke DB
         if not user_db:
-            logger.info(f"User baru terdaftar via Firebase: {email}")
+            # Tentukan role: jika email cocok dengan INITIAL_ADMIN_EMAIL, jadikan admin
+            initial_role = UserRole.USER.value
+            if settings.INITIAL_ADMIN_EMAIL and email == settings.INITIAL_ADMIN_EMAIL:
+                initial_role = UserRole.ADMIN.value
+                logger.info(f"User baru {email} otomatis dijadikan admin (INITIAL_ADMIN_EMAIL)")
+            
+            logger.info(f"User baru terdaftar via Firebase: {email} (role: {initial_role})")
             new_user = User(
                 email=email, 
                 full_name=full_name, 
                 picture=picture, 
-                provider="firebase"
+                provider="firebase",
+                role=initial_role
             )
             db.add(new_user)
             db.commit()
@@ -81,7 +88,8 @@ async def firebase_login(request: Request, data: FirebaseLoginRequest, db: Sessi
             "user_info": { 
                 "email": user_db.email,
                 "full_name": user_db.full_name,
-                "picture": user_db.picture
+                "picture": user_db.picture,
+                "role": user_db.role
             }
         }
 

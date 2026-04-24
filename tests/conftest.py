@@ -25,6 +25,7 @@ os.environ["POSTGRES_PASSWORD"] = "test"
 os.environ["POSTGRES_DB"] = "test"
 os.environ["ENVIRONMENT"] = "development"
 os.environ["CORS_ORIGINS"] = '["http://localhost:3000"]'
+os.environ["INITIAL_ADMIN_EMAIL"] = ""
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -33,7 +34,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.main import app
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.models.device import Device, SensorLog
 from app.core.security import create_access_token
 import app.database as database_module
@@ -106,7 +107,8 @@ def test_user(db_session) -> User:
         full_name="Test User",
         picture="https://example.com/picture.jpg",
         provider="google",
-        is_active=True
+        is_active=True,
+        role=UserRole.USER.value
     )
     db_session.add(user)
     db_session.commit()
@@ -130,6 +132,44 @@ def auth_headers(test_user_token) -> dict:
     Fixture untuk headers dengan Bearer token.
     """
     return {"Authorization": f"Bearer {test_user_token}"}
+
+
+@pytest.fixture
+def test_admin_user(db_session) -> User:
+    """
+    Fixture untuk membuat admin user di database.
+    """
+    admin = User(
+        id=uuid.uuid4(),
+        email="admin@example.com",
+        full_name="Admin User",
+        picture="https://example.com/admin.jpg",
+        provider="google",
+        is_active=True,
+        role=UserRole.ADMIN.value
+    )
+    db_session.add(admin)
+    db_session.commit()
+    db_session.refresh(admin)
+    return admin
+
+
+@pytest.fixture
+def admin_token(test_admin_user) -> str:
+    """
+    Fixture untuk membuat JWT token dari admin user.
+    """
+    return create_access_token(
+        data={"sub": str(test_admin_user.id), "email": test_admin_user.email}
+    )
+
+
+@pytest.fixture
+def admin_headers(admin_token) -> dict:
+    """
+    Fixture untuk headers dengan Bearer token admin.
+    """
+    return {"Authorization": f"Bearer {admin_token}"}
 
 
 @pytest.fixture

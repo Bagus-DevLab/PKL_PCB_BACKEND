@@ -1,5 +1,5 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional
+from pydantic import BaseModel, EmailStr, field_validator
+from typing import Optional, Literal
 from uuid import UUID
 from datetime import datetime
 
@@ -18,9 +18,15 @@ class UserResponse(BaseModel):
     picture: Optional[str] = None
     provider: str
     is_active: bool
+    role: str  # "admin" atau "user"
 
     class Config:
         from_attributes = True
+
+
+class UpdateUserRole(BaseModel):
+    """Schema untuk mengubah role user (khusus admin)"""
+    role: Literal["admin", "user"]
 
 
 class TokenResponse(BaseModel):

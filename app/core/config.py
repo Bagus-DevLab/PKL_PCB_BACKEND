@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     ALERT_TEMP_MAX: float = 35.0  # Suhu maksimum (°C)
     ALERT_TEMP_MIN: float = 20.0  # Suhu minimum (°C)
     ALERT_AMMONIA_MAX: float = 20.0  # Amonia maksimum (ppm)
+    
+    # Admin Seed - Email yang otomatis dijadikan admin saat pertama kali login
+    # Digunakan untuk bootstrap admin pertama (chicken-and-egg problem)
+    INITIAL_ADMIN_EMAIL: str = ""
 
     POSTGRES_USER: str 
     POSTGRES_PASSWORD: str

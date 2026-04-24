@@ -11,11 +11,12 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.database import Base, engine, get_db
+from app.database import Base, engine, get_db, SessionLocal
 from app.routers import auth_router, user_router, device_router
 from app.core.logging_config import setup_logging
 from app.core.config import settings
 from app.core.request_context import request_id_var, generate_request_id
+from app.models.user import User, UserRole
 
 # ==========================================
 # 1. SETUP LOGGING & RATE LIMITER
@@ -37,6 +38,23 @@ async def lifespan(app: FastAPI):
     # Verifikasi Database
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created/verified")
+    
+    # Seed Admin Pertama (jika INITIAL_ADMIN_EMAIL di-set di .env)
+    if settings.INITIAL_ADMIN_EMAIL:
+        db = SessionLocal()
+        try:
+            admin = db.query(User).filter(User.email == settings.INITIAL_ADMIN_EMAIL).first()
+            if admin and admin.role != UserRole.ADMIN.value:
+                admin.role = UserRole.ADMIN.value
+                db.commit()
+                logger.info(f"User {admin.email} dipromosikan menjadi admin (dari INITIAL_ADMIN_EMAIL)")
+            elif admin:
+                logger.debug(f"Admin {admin.email} sudah memiliki role admin")
+            else:
+                logger.info(f"INITIAL_ADMIN_EMAIL ({settings.INITIAL_ADMIN_EMAIL}) belum terdaftar. "
+                           f"Role admin akan di-set otomatis saat user tersebut login pertama kali.")
+        finally:
+            db.close()
     
     # Cek Environment & Logging Docs
     if settings.ENVIRONMENT == "production":

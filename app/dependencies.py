@@ -85,13 +85,12 @@ async def get_current_admin(
 ):
     """
     Dependency khusus admin.
-    Hanya user dengan email tertentu yang diizinkan mengakses.
+    Mengecek kolom 'role' di database, bukan hardcoded email lagi.
     """
-    # Daftar email admin (ideal-nya diambil dari Database atau .env)
-    ADMIN_EMAILS = ["bagusanardiansyah@gmail.com", "bagus@pcb.my.id"] # Ganti sesuai email lu
+    from app.models.user import UserRole
     
-    if current_user.email not in ADMIN_EMAILS:
-        logger.warning(f"Akses Admin DITOLAK untuk {current_user.email}")
+    if current_user.role != UserRole.ADMIN.value:
+        logger.warning(f"Akses Admin DITOLAK untuk {current_user.email} (role: {current_user.role})")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Akses ditolak! Endpoint ini khusus Admin.",
