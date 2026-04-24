@@ -60,6 +60,7 @@ export const userApi = {
 export const adminApi = {
   getStats: () => api.get("/admin/stats"),
   getAllUsers: () => api.get("/admin/users"),
+  syncFirebaseUsers: () => api.post("/admin/sync-firebase-users"),
 };
 
 // ==========================================

@@ -1,0 +1,31 @@
+# ===========================================
+# Production overrides
+# ===========================================
+# Penggunaan:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# File ini:
+# - Menandai volume postgres sebagai external (tidak bisa dihapus oleh docker compose down -v)
+# - Menghilangkan hot-reload dan dev tools
+
+services:
+  backend:
+    # Production: tidak ada hot-reload, tidak ada source mount
+    restart: always
+    # CMD dari Dockerfile (supervisord) — tidak di-override
+
+  mqtt_worker:
+    restart: always
+
+volumes:
+  postgres_data:
+    # PROTEKSI: Volume ditandai external agar tidak bisa dihapus
+    # oleh 'docker compose down -v' secara tidak sengaja.
+    #
+    # Volume harus dibuat manual terlebih dahulu:
+    #   docker volume create pkl-pcb_postgres_data
+    #
+    # Jika volume belum ada, docker compose akan error — ini DISENGAJA
+    # sebagai safety net agar tidak membuat volume baru yang kosong.
+    external: true
+    name: pkl-pcb_postgres_data

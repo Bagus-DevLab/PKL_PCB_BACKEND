@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ShieldCheck, User } from "lucide-react";
+import { ShieldCheck, User, RefreshCw, CloudDownload } from "lucide-react";
 import { adminApi, userApi } from "@/lib/api";
 
 export default function UsersPage() {
@@ -31,6 +31,10 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [newRole, setNewRole] = useState("");
   const [updating, setUpdating] = useState(false);
+
+  // Sync state
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
 
   const currentUser = JSON.parse(localStorage.getItem("user_info") || "{}");
 
@@ -48,6 +52,25 @@ export default function UsersPage() {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  const handleSyncFirebase = async () => {
+    setSyncing(true);
+    setError(null);
+    setSyncResult(null);
+
+    try {
+      const response = await adminApi.syncFirebaseUsers();
+      setSyncResult(response.data);
+      // Refresh daftar user setelah sync
+      await fetchUsers();
+    } catch (err) {
+      setError(
+        err.response?.data?.detail || "Gagal sync user dari Firebase"
+      );
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const openRoleDialog = (user, role) => {
     setSelectedUser(user);
@@ -83,12 +106,49 @@ export default function UsersPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900">Kelola User</h1>
-        <p className="text-slate-500 mt-1">
-          Manage role user di sistem ({users.length} user terdaftar)
-        </p>
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Kelola User</h1>
+          <p className="text-slate-500 mt-1">
+            Manage role user di sistem ({users.length} user terdaftar)
+          </p>
+        </div>
+        <Button
+          onClick={handleSyncFirebase}
+          disabled={syncing}
+          variant="outline"
+        >
+          {syncing ? (
+            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <CloudDownload className="w-4 h-4 mr-2" />
+          )}
+          {syncing ? "Menyinkronkan..." : "Sync dari Firebase"}
+        </Button>
       </div>
+
+      {syncResult && (
+        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <p className="text-sm font-medium text-green-800">
+            Sync selesai!
+          </p>
+          <ul className="mt-1 text-sm text-green-700 space-y-0.5">
+            <li>{syncResult.synced_count} user baru ditambahkan</li>
+            <li>{syncResult.skipped_count} user sudah ada (dilewati)</li>
+            {syncResult.failed_count > 0 && (
+              <li className="text-red-600">
+                {syncResult.failed_count} user gagal di-sync
+              </li>
+            )}
+          </ul>
+          <button
+            onClick={() => setSyncResult(null)}
+            className="mt-2 text-xs text-green-600 underline"
+          >
+            Tutup
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
