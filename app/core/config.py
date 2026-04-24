@@ -2,7 +2,7 @@ import json
 from pydantic_settings import BaseSettings
 from pydantic import field_validator
 from functools import lru_cache
-from typing import List
+from typing import List, Union
 
 
 class Settings(BaseSettings):
@@ -52,8 +52,11 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
     
-    # CORS - Parse JSON string dari .env
-    CORS_ORIGINS: List[str]
+    # CORS Origins — mendukung 3 format di .env:
+    #   1. JSON array:    CORS_ORIGINS=["https://pcb.my.id","https://api.pcb.my.id"]
+    #   2. Comma-separated: CORS_ORIGINS=https://pcb.my.id,https://api.pcb.my.id
+    #   3. Single origin:   CORS_ORIGINS=https://pcb.my.id
+    CORS_ORIGINS: Union[str, List[str]]
     
     class Config:
         env_file = ".env"
@@ -63,14 +66,22 @@ class Settings(BaseSettings):
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, v):
-        """Parse CORS_ORIGINS dari JSON string di .env"""
+        """Parse CORS_ORIGINS dari berbagai format string di .env"""
+        if isinstance(v, list):
+            return v
         if isinstance(v, str):
-            try:
-                return json.loads(v)
-            except json.JSONDecodeError:
-                # Fallback jika format bukan JSON, split by comma
-                return [origin.strip() for origin in v.split(",")]
-        return v
+            v = v.strip()
+            # Coba parse sebagai JSON array dulu
+            if v.startswith("["):
+                try:
+                    parsed = json.loads(v)
+                    if isinstance(parsed, list):
+                        return parsed
+                except json.JSONDecodeError:
+                    pass
+            # Fallback: split by comma
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return [str(v)]
     
     @property
     def is_production(self) -> bool:
