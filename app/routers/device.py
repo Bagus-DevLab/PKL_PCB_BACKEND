@@ -1,6 +1,7 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func, cast, Integer, Date
 from typing import List
 from uuid import UUID
 from slowapi import Limiter
@@ -15,10 +16,10 @@ from app.dependencies import get_current_user, get_current_admin
 import json
 import paho.mqtt.client as mqtt
 from app.core.config import settings
-from app.schemas.device import DeviceControl
+from app.schemas.device import DeviceControl, DailyTemperatureStats, DailyTemperatureStatsResponse
 from app.core.request_context import get_request_id
 from app.mqtt.publisher import publish_control
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta, date
 
 logger = logging.getLogger(__name__)
 
@@ -225,8 +226,135 @@ def get_device_alerts(
     
     logger.debug(f"User {current_user.email} mengambil {len(alerts)} alerts dari device {device.name}")
     return alerts
-        
-        
+
+
+# ==========================================
+# 4. STATISTIK RATA-RATA SUHU HARIAN
+# ==========================================
+@router.get("/{device_id}/stats/daily", response_model=DailyTemperatureStatsResponse)
+@limiter.limit("30/minute")
+def get_daily_temperature_stats(
+    request: Request,
+    device_id: UUID,
+    days: int = Query(default=7, ge=1, le=90, description="Jumlah hari ke belakang (1-90)"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Mengambil statistik rata-rata suhu harian untuk device tertentu.
+    
+    Data di-agregasi per hari dari tabel sensor_logs, meliputi:
+    - Rata-rata, minimum, dan maksimum suhu
+    - Rata-rata kelembaban dan amonia
+    - Jumlah data point (pembacaan sensor)
+    - Jumlah alert yang terpicu
+    
+    **Query Parameter:**
+    - `days`: Jumlah hari ke belakang dari hari ini (default: 7, max: 90)
+    
+    **Contoh:** `GET /devices/{id}/stats/daily?days=30` → statistik 30 hari terakhir
+    """
+    logger.info(f"User {current_user.email} mengambil statistik harian device_id: {device_id}, days: {days}")
+    
+    # =============================================
+    # 1. SECURITY CHECK - Pastikan device milik user
+    # =============================================
+    device = db.query(Device).filter(
+        Device.id == device_id, 
+        Device.user_id == current_user.id
+    ).first()
+    
+    if not device:
+        logger.warning(f"Akses stats DITOLAK - device_id: {device_id} oleh {current_user.email}")
+        raise HTTPException(
+            status_code=404, 
+            detail="Device tidak ditemukan atau akses ditolak"
+        )
+
+    # =============================================
+    # 2. HITUNG RENTANG TANGGAL
+    # =============================================
+    # Pakai UTC supaya konsisten dengan timestamp di database
+    today = datetime.now(timezone.utc).date()
+    start_date = today - timedelta(days=days - 1)  # -1 karena hari ini ikut dihitung
+    
+    # Konversi ke datetime untuk filter query (awal hari start_date 00:00:00 UTC)
+    start_datetime = datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.utc)
+
+    # =============================================
+    # 3. QUERY AGREGASI PER HARI
+    # =============================================
+    # Gunakan func.date() untuk extract tanggal dari kolom timestamp
+    # PostgreSQL: DATE(timestamp) → '2026-01-15'
+    #
+    # Query SQL yang dihasilkan kurang lebih:
+    # SELECT 
+    #     DATE(timestamp) as log_date,
+    #     AVG(temperature), MIN(temperature), MAX(temperature),
+    #     AVG(humidity), AVG(ammonia),
+    #     COUNT(*),
+    #     SUM(CASE WHEN is_alert THEN 1 ELSE 0 END)
+    # FROM sensor_logs
+    # WHERE device_id = :id AND timestamp >= :start
+    # GROUP BY DATE(timestamp)
+    # ORDER BY log_date ASC
+    
+    log_date = func.date(SensorLog.timestamp).label("log_date")
+    
+    daily_stats = db.query(
+        log_date,
+        func.avg(SensorLog.temperature).label("avg_temperature"),
+        func.min(SensorLog.temperature).label("min_temperature"),
+        func.max(SensorLog.temperature).label("max_temperature"),
+        func.avg(SensorLog.humidity).label("avg_humidity"),
+        func.avg(SensorLog.ammonia).label("avg_ammonia"),
+        func.count(SensorLog.id).label("data_points"),
+        func.sum(cast(SensorLog.is_alert, Integer)).label("alert_count"),
+    ).filter(
+        SensorLog.device_id == device_id,
+        SensorLog.timestamp >= start_datetime
+    ).group_by(
+        log_date
+    ).order_by(
+        log_date.asc()
+    ).all()
+
+    # =============================================
+    # 4. TRANSFORM HASIL QUERY KE SCHEMA PYDANTIC
+    # =============================================
+    statistics = []
+    for row in daily_stats:
+        stat = DailyTemperatureStats(
+            date=row.log_date,
+            avg_temperature=row.avg_temperature or 0.0,
+            min_temperature=row.min_temperature or 0.0,
+            max_temperature=row.max_temperature or 0.0,
+            avg_humidity=row.avg_humidity or 0.0,
+            avg_ammonia=row.avg_ammonia or 0.0,
+            data_points=row.data_points or 0,
+            alert_count=row.alert_count or 0,
+        )
+        statistics.append(stat)
+
+    # =============================================
+    # 5. BUNGKUS DALAM RESPONSE WRAPPER
+    # =============================================
+    response = DailyTemperatureStatsResponse(
+        device_id=device.id,
+        device_name=device.name,
+        period_start=start_date,
+        period_end=today,
+        total_days=len(statistics),  # Jumlah hari yang BENAR-BENAR ada datanya
+        statistics=statistics
+    )
+
+    logger.info(
+        f"Stats SUKSES - Device '{device.name}': {len(statistics)} hari data "
+        f"dari {start_date} s/d {today} untuk {current_user.email}"
+    )
+    return response
+
+
 @router.post("/{device_id}/unclaim")
 @limiter.limit("10/minute")
 def unclaim_device(

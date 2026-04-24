@@ -1,6 +1,6 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, date, timedelta, timezone
 from pydantic import BaseModel, computed_field, field_validator
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 from uuid import UUID
 import re
 
@@ -106,3 +106,110 @@ class DeviceControl(BaseModel):
     # Mau diapain?
     # True = NYALA (ON), False = MATI (OFF)
     state: bool
+
+
+# ==========================================
+# STATISTIK RATA-RATA SUHU HARIAN
+# ==========================================
+
+class DailyTemperatureStats(BaseModel):
+    """
+    Schema statistik rata-rata suhu harian untuk satu hari tertentu.
+    
+    Digunakan untuk menampilkan ringkasan kondisi kandang per hari,
+    termasuk suhu (avg/min/max), kelembaban, amonia, dan jumlah alert.
+    Cocok untuk grafik harian di dashboard mobile app.
+    """
+    # Tanggal data (tanpa jam, murni per hari)
+    date: date
+
+    # --- Statistik Suhu (°C) ---
+    avg_temperature: float   # Rata-rata suhu hari itu
+    min_temperature: float   # Suhu terendah hari itu
+    max_temperature: float   # Suhu tertinggi hari itu
+
+    # --- Statistik Pendukung ---
+    avg_humidity: float      # Rata-rata kelembaban (%)
+    avg_ammonia: float       # Rata-rata kadar amonia (ppm)
+
+    # --- Metadata ---
+    data_points: int         # Jumlah pembacaan sensor hari itu (transparansi data)
+    alert_count: int         # Berapa kali alert terpicu hari itu
+
+    @computed_field
+    def status(self) -> str:
+        """
+        Ringkasan kondisi kandang hari itu berdasarkan rata-rata suhu.
+        Threshold disesuaikan dengan standar suhu kandang ayam:
+        - Ideal: 25°C - 30°C
+        - Di luar itu: Waspada atau Bahaya
+        """
+        if self.avg_temperature <= 0:
+            return "Tidak Ada Data"
+        elif 25.0 <= self.avg_temperature <= 30.0:
+            return "Normal"
+        elif 20.0 <= self.avg_temperature < 25.0 or 30.0 < self.avg_temperature <= 35.0:
+            return "Waspada"
+        else:
+            return "Bahaya"
+
+    @field_validator("avg_temperature", "min_temperature", "max_temperature", "avg_humidity", "avg_ammonia")
+    @classmethod
+    def round_to_two_decimals(cls, v: float) -> float:
+        """Bulatkan semua nilai sensor ke 2 angka di belakang koma agar rapi di frontend."""
+        return round(v, 2)
+
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "date": "2026-01-15",
+                "avg_temperature": 28.45,
+                "min_temperature": 25.10,
+                "max_temperature": 31.80,
+                "avg_humidity": 72.30,
+                "avg_ammonia": 12.55,
+                "data_points": 288,
+                "alert_count": 3,
+                "status": "Normal"
+            }
+        }
+
+
+class DailyTemperatureStatsResponse(BaseModel):
+    """
+    Schema response wrapper untuk statistik harian.
+    Membungkus list DailyTemperatureStats dengan metadata device,
+    sehingga frontend tahu data ini milik device/kandang yang mana.
+    """
+    device_id: UUID
+    device_name: Optional[str] = None
+    period_start: date        # Tanggal awal rentang data
+    period_end: date          # Tanggal akhir rentang data
+    total_days: int           # Jumlah hari yang ada datanya
+    statistics: List[DailyTemperatureStats]  # Data statistik per hari
+
+    class Config:
+        from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "device_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "device_name": "Kandang Utara",
+                "period_start": "2026-01-08",
+                "period_end": "2026-01-15",
+                "total_days": 7,
+                "statistics": [
+                    {
+                        "date": "2026-01-15",
+                        "avg_temperature": 28.45,
+                        "min_temperature": 25.10,
+                        "max_temperature": 31.80,
+                        "avg_humidity": 72.30,
+                        "avg_ammonia": 12.55,
+                        "data_points": 288,
+                        "alert_count": 3,
+                        "status": "Normal"
+                    }
+                ]
+            }
+        }
