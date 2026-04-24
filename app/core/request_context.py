@@ -17,11 +17,6 @@ def generate_request_id() -> str:
     return uuid.uuid4().hex[:8]
 
 
-def get_request_id() -> str:
-    """Ambil request_id dari context saat ini"""
-    return request_id_var.get()
-
-
 class RequestIdFilter(logging.Filter):
     """
     Custom logging filter yang otomatis inject request_id ke setiap log record.

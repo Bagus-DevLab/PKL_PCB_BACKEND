@@ -15,9 +15,10 @@ from app.schemas.device import (
 )
 from app.dependencies import (
     get_current_user, get_current_admin, get_current_super_admin,
-    get_device_with_access, check_can_control_device,
+    get_device_with_access, check_can_control_device, get_owned_device,
 )
 from app.mqtt.publisher import publish_control
+from app.core.config import settings
 from datetime import date as date_type, datetime, timezone, timedelta
 
 logger = logging.getLogger(__name__)
@@ -293,17 +294,7 @@ def unclaim_device(
     current_user: User = Depends(get_current_user)
 ):
     """Lepas kepemilikan device. Hanya Super Admin atau Admin pemilik."""
-    if current_user.role not in [UserRole.SUPER_ADMIN.value, UserRole.ADMIN.value]:
-        raise HTTPException(status_code=403, detail="Hanya Admin yang bisa unclaim device.")
-
-    # Super Admin bisa unclaim device siapapun
-    if current_user.role == UserRole.SUPER_ADMIN.value:
-        device = db.query(Device).filter(Device.id == device_id).first()
-    else:
-        device = db.query(Device).filter(Device.id == device_id, Device.user_id == current_user.id).first()
-
-    if not device:
-        raise HTTPException(status_code=404, detail="Device tidak ditemukan atau bukan milik Anda!")
+    device = get_owned_device(device_id, current_user, db)
 
     old_name = device.name
 
@@ -341,8 +332,6 @@ def get_device_status(
         last_hb = last_hb.replace(tzinfo=timezone.utc)
 
     seconds_since = (now - last_hb).total_seconds()
-
-    from app.core.config import settings
     is_online = seconds_since <= settings.DEVICE_ONLINE_TIMEOUT_SECONDS
 
     return {
@@ -370,17 +359,7 @@ def assign_user_to_device(
     - Super Admin: bisa assign ke device manapun
     - Admin: hanya bisa assign ke device miliknya
     """
-    if current_user.role not in [UserRole.SUPER_ADMIN.value, UserRole.ADMIN.value]:
-        raise HTTPException(status_code=403, detail="Hanya Admin yang bisa assign user ke device.")
-
-    # Cek device
-    if current_user.role == UserRole.SUPER_ADMIN.value:
-        device = db.query(Device).filter(Device.id == device_id).first()
-    else:
-        device = db.query(Device).filter(Device.id == device_id, Device.user_id == current_user.id).first()
-
-    if not device:
-        raise HTTPException(status_code=404, detail="Device tidak ditemukan atau bukan milik Anda.")
+    device = get_owned_device(device_id, current_user, db)
 
     # Cek target user
     target_user = db.query(User).filter(User.id == assignment.user_id).first()
@@ -444,17 +423,7 @@ def unassign_user_from_device(
     current_user: User = Depends(get_current_user)
 ):
     """Hapus assignment user dari device."""
-    if current_user.role not in [UserRole.SUPER_ADMIN.value, UserRole.ADMIN.value]:
-        raise HTTPException(status_code=403, detail="Hanya Admin yang bisa unassign user.")
-
-    # Cek device ownership
-    if current_user.role == UserRole.SUPER_ADMIN.value:
-        device = db.query(Device).filter(Device.id == device_id).first()
-    else:
-        device = db.query(Device).filter(Device.id == device_id, Device.user_id == current_user.id).first()
-
-    if not device:
-        raise HTTPException(status_code=404, detail="Device tidak ditemukan atau bukan milik Anda.")
+    device = get_owned_device(device_id, current_user, db)
 
     assignment = db.query(DeviceAssignment).filter(
         DeviceAssignment.device_id == device_id,
@@ -481,16 +450,7 @@ def get_device_assignments(
     current_user: User = Depends(get_current_user)
 ):
     """Lihat siapa saja yang di-assign ke device. Khusus Admin+."""
-    if current_user.role not in [UserRole.SUPER_ADMIN.value, UserRole.ADMIN.value]:
-        raise HTTPException(status_code=403, detail="Hanya Admin yang bisa melihat assignments.")
-
-    if current_user.role == UserRole.SUPER_ADMIN.value:
-        device = db.query(Device).filter(Device.id == device_id).first()
-    else:
-        device = db.query(Device).filter(Device.id == device_id, Device.user_id == current_user.id).first()
-
-    if not device:
-        raise HTTPException(status_code=404, detail="Device tidak ditemukan atau bukan milik Anda.")
+    device = get_owned_device(device_id, current_user, db)
 
     assignments = db.query(DeviceAssignment).filter(DeviceAssignment.device_id == device_id).all()
 

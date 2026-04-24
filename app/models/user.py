@@ -29,16 +29,6 @@ class UserRole(str, enum.Enum):
         """Role yang bisa akses admin dashboard"""
         return [cls.SUPER_ADMIN.value, cls.ADMIN.value]
 
-    @classmethod
-    def can_control_roles(cls):
-        """Role yang bisa kontrol device (jika punya akses)"""
-        return [cls.SUPER_ADMIN.value, cls.ADMIN.value, cls.OPERATOR.value]
-
-    @classmethod
-    def can_view_roles(cls):
-        """Role yang bisa lihat data device (jika punya akses)"""
-        return [cls.SUPER_ADMIN.value, cls.ADMIN.value, cls.OPERATOR.value, cls.VIEWER.value]
-
 
 class User(Base):
     __tablename__ = "users"

@@ -22,11 +22,6 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int  # Wajib dari .env (sesuai .env: 10080)
     
-    # Google OAuth
-    GOOGLE_CLIENT_ID: str  # Wajib dari .env
-    GOOGLE_CLIENT_SECRET: str  # Wajib dari .env
-    BASE_URL: str  # Wajib dari .env (jangan hardcoded localhost!)
-    
     # MQTT
     MQTT_BROKER: str
     MQTT_PORT: int = 1883
@@ -82,10 +77,6 @@ class Settings(BaseSettings):
             # Fallback: split by comma
             return [origin.strip() for origin in v.split(",") if origin.strip()]
         return [str(v)]
-    
-    @property
-    def is_production(self) -> bool:
-        return self.ENVIRONMENT == "production"
 
 
 @lru_cache()

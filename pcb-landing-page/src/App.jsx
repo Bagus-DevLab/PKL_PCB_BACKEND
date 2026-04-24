@@ -30,7 +30,7 @@ function LandingPage() {
 }
 
 function App() {
-  const { user, loading, error, login, logout, setError } = useAuth()
+  const { user, loading, error, isAdmin, login, logout, setError } = useAuth()
 
   return (
     <Routes>
@@ -41,7 +41,7 @@ function App() {
       <Route
         path="/admin/login"
         element={
-          user?.role === 'admin' ? (
+          isAdmin ? (
             <Navigate to="/admin/dashboard" replace />
           ) : (
             <LoginPage
@@ -58,7 +58,7 @@ function App() {
       <Route
         path="/admin"
         element={
-          <AdminGuard user={user} loading={loading}>
+          <AdminGuard isAdmin={isAdmin} loading={loading}>
             <AdminLayout user={user} onLogout={logout} />
           </AdminGuard>
         }

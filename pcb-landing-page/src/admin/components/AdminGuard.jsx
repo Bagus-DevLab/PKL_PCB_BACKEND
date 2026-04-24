@@ -2,7 +2,7 @@ import { Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 
-export default function AdminGuard({ user, loading, children }) {
+export default function AdminGuard({ isAdmin, loading, children }) {
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-3">
@@ -17,7 +17,7 @@ export default function AdminGuard({ user, loading, children }) {
     );
   }
 
-  if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
+  if (!isAdmin) {
     return <Navigate to="/admin/login" replace />;
   }
 

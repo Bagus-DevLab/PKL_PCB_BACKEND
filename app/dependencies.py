@@ -175,3 +175,36 @@ def check_can_control_device(device_id: UUID, current_user: User, db: Session):
 
     # Cek akses ke device (super_admin, admin, operator)
     return get_device_with_access(device_id, current_user, db)
+
+
+def get_owned_device(device_id: UUID, current_user: User, db: Session):
+    """
+    Cek apakah user adalah pemilik device (admin) atau super_admin.
+    Digunakan untuk operasi yang memerlukan ownership: assign, unassign, unclaim.
+    
+    - super_admin: bisa akses device manapun
+    - admin: hanya device miliknya (user_id == admin.id)
+    - role lain: ditolak (403)
+    
+    Returns: Device object jika punya ownership.
+    """
+    from app.models.device import Device
+
+    if current_user.role not in [UserRole.SUPER_ADMIN.value, UserRole.ADMIN.value]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Hanya Admin yang bisa melakukan operasi ini."
+        )
+
+    if current_user.role == UserRole.SUPER_ADMIN.value:
+        device = db.query(Device).filter(Device.id == device_id).first()
+    else:
+        device = db.query(Device).filter(
+            Device.id == device_id,
+            Device.user_id == current_user.id
+        ).first()
+
+    if not device:
+        raise HTTPException(status_code=404, detail="Device tidak ditemukan atau bukan milik Anda.")
+
+    return device
