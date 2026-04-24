@@ -12,7 +12,7 @@ from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.database import Base, engine, get_db, SessionLocal
-from app.routers import auth_router, user_router, device_router
+from app.routers import auth_router, user_router, device_router, admin_router
 from app.core.logging_config import setup_logging
 from app.core.config import settings
 from app.core.request_context import request_id_var, generate_request_id
@@ -130,11 +130,16 @@ app.add_middleware(
 # ==========================================
 # 6. ROUTERS & ENDPOINTS
 # ==========================================
-app.include_router(auth_router)
-app.include_router(user_router)
-app.include_router(device_router)
+# Semua router di-prefix dengan /api agar tidak bentrok dengan
+# frontend React yang di-serve oleh Nginx di root path (/).
+API_PREFIX = "/api"
 
-@app.get("/", tags=["Health"])
+app.include_router(auth_router, prefix=API_PREFIX)
+app.include_router(user_router, prefix=API_PREFIX)
+app.include_router(device_router, prefix=API_PREFIX)
+app.include_router(admin_router, prefix=API_PREFIX)
+
+@app.get(f"{API_PREFIX}/health", tags=["Health"])
 @limiter.limit("60/minute")
 def health_check(request: Request, db: Session = Depends(get_db)):
     """Health check endpoint untuk memastikan database berjalan"""
