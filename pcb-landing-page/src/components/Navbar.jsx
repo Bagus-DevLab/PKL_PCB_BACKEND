@@ -1,25 +1,25 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, Cpu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
-  // Fungsi untuk custom smooth scroll dengan offset
-  const handleScroll = (e, targetId) => {
+  // Deteksi scroll untuk mengubah background navbar
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const handleScrollTo = (e, targetId) => {
     e.preventDefault();
-    const targetElement = document.getElementById(targetId);
-
-    if (targetElement) {
-      const navbarHeight = 80;
-      const elementPosition = targetElement.getBoundingClientRect().top;
-      const offsetPosition = elementPosition + window.scrollY - navbarHeight;
-
-      window.scrollTo({
-        top: offsetPosition,
-        behavior: "smooth"
-      });
+    const el = document.getElementById(targetId);
+    if (el) {
+      const offset = el.getBoundingClientRect().top + window.scrollY - 80;
+      window.scrollTo({ top: offset, behavior: 'smooth' });
       setIsOpen(false);
     }
   };
@@ -28,42 +28,56 @@ export default function Navbar() {
     <motion.nav
       initial={{ y: -100 }}
       animate={{ y: 0 }}
-      transition={{ duration: 0.6, ease: "easeOut" }}
-      className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200"
+      transition={{ duration: 0.6, ease: 'easeOut' }}
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        scrolled
+          ? 'bg-white/90 backdrop-blur-xl border-b border-slate-200 shadow-sm'
+          : 'bg-transparent'
+      }`}
     >
       <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-
-        {/* Logo Text */}
+        {/* Logo */}
         <div
-          onClick={(e) => handleScroll(e, 'beranda')}
-          className="text-2xl font-black tracking-wider text-slate-900 cursor-pointer hover:opacity-80 transition-opacity"
+          onClick={(e) => handleScrollTo(e, 'beranda')}
+          className="flex items-center gap-2 cursor-pointer group"
         >
-          PCB<span className="text-slate-500 text-sm font-medium ml-2 tracking-normal">Smart Kandang</span>
+          <div className="w-8 h-8 bg-pcb-blue rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform">
+            <Cpu className="w-4 h-4 text-white" />
+          </div>
+          <span className="text-xl font-bold text-slate-900">
+            PCB<span className="text-slate-400 font-normal ml-1">Smart Kandang</span>
+          </span>
         </div>
 
-        {/* Navigation Links - Desktop */}
-        <div className="hidden md:flex items-center space-x-8 text-slate-600 font-medium">
+        {/* Desktop Nav */}
+        <div className="hidden md:flex items-center gap-8">
           <a
             href="#beranda"
-            onClick={(e) => handleScroll(e, 'beranda')}
-            className="hover:text-pcb-blue transition-colors text-sm"
+            onClick={(e) => handleScrollTo(e, 'beranda')}
+            className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
           >
             Beranda
           </a>
           <a
             href="#fitur"
-            onClick={(e) => handleScroll(e, 'fitur')}
-            className="hover:text-pcb-blue transition-colors text-sm"
+            onClick={(e) => handleScrollTo(e, 'fitur')}
+            className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
           >
             Fitur Utama
           </a>
+          <a
+            href="/admin/login"
+            className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+          >
+            Admin
+          </a>
         </div>
 
-        {/* CTA Button - Desktop */}
+        {/* Desktop CTA */}
         <div className="hidden md:block">
           <Button
             asChild
-            className="bg-pcb-blue hover:bg-pcb-blue/90 text-white rounded-full font-semibold shadow-[0_0_15px_rgba(60,145,230,0.2)] hover:shadow-[0_0_20px_rgba(60,145,230,0.4)] transition-all"
+            className="rounded-full font-semibold shadow-md hover:shadow-lg transition-all"
           >
             <a href="#" target="_blank" rel="noopener noreferrer">
               Download Aplikasi
@@ -71,50 +85,33 @@ export default function Navbar() {
           </Button>
         </div>
 
-        {/* Mobile Menu Icon */}
-        <div className="md:hidden text-slate-600 cursor-pointer">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsOpen(!isOpen)}
-            className="text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-          >
-            {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </Button>
-        </div>
+        {/* Mobile Menu Toggle */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsOpen(!isOpen)}
+          className="md:hidden text-slate-600"
+        >
+          {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </Button>
       </div>
 
-      {/* Mobile Menu Dropdown */}
+      {/* Mobile Menu */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
             className="md:hidden bg-white/95 backdrop-blur-xl border-b border-slate-200 overflow-hidden"
           >
-            <div className="px-6 py-6 flex flex-col space-y-4">
-              <a
-                href="#beranda"
-                onClick={(e) => handleScroll(e, 'beranda')}
-                className="text-slate-700 hover:text-pcb-blue transition-colors font-medium text-lg"
-              >
-                Beranda
-              </a>
-              <a
-                href="#fitur"
-                onClick={(e) => handleScroll(e, 'fitur')}
-                className="text-slate-700 hover:text-pcb-blue transition-colors font-medium text-lg"
-              >
-                Fitur Utama
-              </a>
-              <Button
-                asChild
-                className="w-full mt-4 bg-pcb-blue hover:bg-pcb-blue/90 text-white rounded-lg font-semibold"
-              >
-                <a href="#" target="_blank" rel="noopener noreferrer">
-                  Download Aplikasi
-                </a>
+            <div className="px-6 py-4 flex flex-col gap-3">
+              <a href="#beranda" onClick={(e) => handleScrollTo(e, 'beranda')} className="text-slate-700 hover:text-pcb-blue font-medium py-2">Beranda</a>
+              <a href="#fitur" onClick={(e) => handleScrollTo(e, 'fitur')} className="text-slate-700 hover:text-pcb-blue font-medium py-2">Fitur Utama</a>
+              <a href="/admin/login" className="text-slate-700 hover:text-pcb-blue font-medium py-2">Admin</a>
+              <Button asChild className="w-full mt-2 rounded-lg font-semibold">
+                <a href="#" target="_blank" rel="noopener noreferrer">Download Aplikasi</a>
               </Button>
             </div>
           </motion.div>
