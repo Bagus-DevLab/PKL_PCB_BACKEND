@@ -4,9 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Integer, String
 from typing import List
 from uuid import UUID
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-
+from app.core.limiter import limiter
 from app.database import get_db
 from app.models.user import User
 from app.models.device import Device, SensorLog
@@ -18,9 +16,6 @@ from app.mqtt.publisher import publish_control
 from datetime import date as date_type, datetime, timezone, timedelta
 
 logger = logging.getLogger(__name__)
-
-# Rate Limiter
-limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(
     prefix="/devices",
@@ -440,8 +435,9 @@ def get_device_status(
     time_diff = now - last_heartbeat_aware
     seconds_since_last_seen = time_diff.total_seconds()
 
-    # 4. Tentukan Online/Offline (Toleransi 2 menit / 120 detik)
-    is_online = seconds_since_last_seen <= 120
+    # 4. Tentukan Online/Offline (threshold dari config)
+    from app.core.config import settings
+    is_online = seconds_since_last_seen <= settings.DEVICE_ONLINE_TIMEOUT_SECONDS
 
     return {
         "device_id": device_id,

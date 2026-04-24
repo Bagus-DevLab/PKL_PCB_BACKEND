@@ -6,8 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -16,6 +15,7 @@ from app.routers import auth_router, user_router, device_router, admin_router
 from app.core.logging_config import setup_logging
 from app.core.config import settings
 from app.core.request_context import request_id_var, generate_request_id
+from app.core.limiter import limiter
 from app.models.user import User, UserRole
 
 # ==========================================
@@ -23,7 +23,6 @@ from app.models.user import User, UserRole
 # ==========================================
 setup_logging()
 logger = logging.getLogger(__name__)
-limiter = Limiter(key_func=get_remote_address)
 
 # ==========================================
 # 2. LIFESPAN (STARTUP & SHUTDOWN)
@@ -36,8 +35,13 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 50)
     
     # Verifikasi Database
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database tables created/verified")
+    # Di production, gunakan Alembic migration (alembic upgrade head).
+    # create_all() hanya untuk development/testing agar tidak perlu migration manual.
+    if settings.ENVIRONMENT != "production":
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables created/verified (development mode)")
+    else:
+        logger.info("Production mode: pastikan 'alembic upgrade head' sudah dijalankan")
     
     # Seed Admin Pertama (jika INITIAL_ADMIN_EMAIL di-set di .env)
     if settings.INITIAL_ADMIN_EMAIL:
@@ -123,8 +127,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # ==========================================

@@ -4,8 +4,6 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 import firebase_admin
 from firebase_admin import credentials, auth
@@ -14,11 +12,9 @@ from app.database import get_db
 from app.models.user import User, UserRole
 from app.core.config import settings
 from app.core.security import create_access_token
+from app.core.limiter import limiter
 
 logger = logging.getLogger(__name__)
-
-# Rate Limiter
-limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 

@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     ALERT_TEMP_MIN: float = 20.0  # Suhu minimum (°C)
     ALERT_AMMONIA_MAX: float = 20.0  # Amonia maksimum (ppm)
     
+    # Device Online Timeout (detik)
+    # Device dianggap online jika heartbeat terakhir dalam rentang ini.
+    # Default 120 detik (2 menit) — toleransi 2x interval heartbeat normal (60 detik).
+    DEVICE_ONLINE_TIMEOUT_SECONDS: int = 120
+    
     # Admin Seed - Email yang otomatis dijadikan admin saat pertama kali login
     # Digunakan untuk bootstrap admin pertama (chicken-and-egg problem)
     INITIAL_ADMIN_EMAIL: str = ""

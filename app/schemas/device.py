@@ -73,25 +73,20 @@ class DeviceResponse(BaseModel):
     
     @computed_field
     def is_online(self) -> bool:
-        # Kalau belum pernah kirim data, anggap OFFLINE
         if self.last_heartbeat is None:
             return False
         
-        # Ambil waktu sekarang (UTC biar aman)
+        from app.core.config import settings
+        
         now = datetime.now(timezone.utc)
         
-        # Hitung selisih waktu
         # Handle both timezone-aware and naive datetimes
         last_hb = self.last_heartbeat
         if last_hb.tzinfo is None:
-            # If naive, assume UTC
             last_hb = last_hb.replace(tzinfo=timezone.utc)
         
         diff = now - last_hb
-        
-        # Kalau selisih kurang dari 5 menit (300 detik) -> ONLINE 🟢
-        # Kalau lebih -> OFFLINE 🔴
-        return diff < timedelta(minutes=5)
+        return diff < timedelta(seconds=settings.DEVICE_ONLINE_TIMEOUT_SECONDS)
 
     class Config:
         from_attributes = True

@@ -7,23 +7,48 @@ import {
 import { authApi, userApi } from "@/lib/api";
 
 export function useAuth() {
-  const [user, setUser] = useState(null); // user info dari backend
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Cek apakah sudah ada session tersimpan di localStorage
+  // Saat page load: cek apakah ada session tersimpan di localStorage,
+  // lalu VERIFIKASI ke backend apakah token masih valid dan role masih admin.
+  // Ini mencegah user memanipulasi localStorage untuk bypass admin guard.
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    const savedUser = localStorage.getItem("user_info");
+    const verifySession = async () => {
+      const token = localStorage.getItem("access_token");
+      const savedUser = localStorage.getItem("user_info");
 
-    if (token && savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch {
-        localStorage.removeItem("user_info");
+      if (!token || !savedUser) {
+        setLoading(false);
+        return;
       }
-    }
-    setLoading(false);
+
+      try {
+        // Verifikasi token ke backend — pastikan masih valid
+        const response = await userApi.getMe();
+        const backendUser = response.data;
+
+        // Pastikan role masih admin
+        if (backendUser.role === "admin") {
+          // Update localStorage dengan data terbaru dari backend
+          localStorage.setItem("user_info", JSON.stringify(backendUser));
+          setUser(backendUser);
+        } else {
+          // Role berubah (bukan admin lagi) — hapus session
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("user_info");
+        }
+      } catch {
+        // Token expired/invalid — hapus session
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("user_info");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    verifySession();
   }, []);
 
   // Login dengan email + password via Firebase, lalu kirim token ke backend
@@ -46,7 +71,6 @@ export function useAuth() {
       const fullUser = meResponse.data;
 
       if (fullUser.role !== "admin") {
-        // Bukan admin — hapus token dan tolak
         localStorage.removeItem("access_token");
         await signOut(auth);
         throw new Error("Akses ditolak. Akun ini bukan admin.");
@@ -81,7 +105,6 @@ export function useAuth() {
     setUser(null);
   }, []);
 
-  // Cek apakah user adalah admin
   const isAdmin = user?.role === "admin";
   const isAuthenticated = !!user && !!localStorage.getItem("access_token");
 

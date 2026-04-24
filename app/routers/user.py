@@ -2,9 +2,8 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from uuid import UUID
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
+from app.core.limiter import limiter
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.models.device import Device
@@ -12,9 +11,6 @@ from app.schemas.user import UserResponse, UpdateUserRole, UpdateUserName
 from app.dependencies import get_current_user, get_current_admin
 
 logger = logging.getLogger(__name__)
-
-# Rate Limiter
-limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(
     prefix="/users", 

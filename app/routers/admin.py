@@ -3,9 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
+from app.core.limiter import limiter
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.models.device import Device
@@ -14,9 +13,6 @@ from app.dependencies import get_current_admin
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
-
-# Rate Limiter
-limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(
     prefix="/admin",
@@ -54,11 +50,11 @@ def get_admin_stats(
         Device.user_id.is_(None)
     ).scalar()
 
-    # Hitung device online (heartbeat dalam 5 menit terakhir)
-    five_minutes_ago = datetime.now(timezone.utc) - timedelta(minutes=5)
+    # Hitung device online (heartbeat dalam threshold yang dikonfigurasi)
+    online_cutoff = datetime.now(timezone.utc) - timedelta(seconds=settings.DEVICE_ONLINE_TIMEOUT_SECONDS)
     total_devices_online = db.query(func.count(Device.id)).filter(
         Device.last_heartbeat.isnot(None),
-        Device.last_heartbeat >= five_minutes_ago
+        Device.last_heartbeat >= online_cutoff
     ).scalar()
 
     return {
