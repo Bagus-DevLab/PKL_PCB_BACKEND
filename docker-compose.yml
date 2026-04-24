@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:15
@@ -24,7 +22,7 @@ services:
     container_name: pcb_pkl_mosquitto
     restart: always
     ports:
-      - "1883:1883" # Tetap dibuka untuk alat fisik IoT, pastikan wajibkan auth di mosquitto.conf!
+      - "1883:1883"
     volumes:
       - ./mosquitto/config:/mosquitto/config
       - ./mosquitto/data:/mosquitto/data
@@ -38,11 +36,21 @@ services:
       retries: 3
 
   backend:
-    build: .
+    build:
+      context: .
+      args:
+        # Firebase web config — di-pass ke Vite saat build React frontend
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY:-}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN:-}
+        VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID:-}
+        VITE_FIREBASE_STORAGE_BUCKET: ${VITE_FIREBASE_STORAGE_BUCKET:-}
+        VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID:-}
+        VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID:-}
     container_name: pcb_pkl_backend
     restart: always
     ports:
-      # Nginx di port 80 internal, expose ke 8001
+      # Port mapping: host 8001 -> container
+      # Production: Nginx port 80 (di-override oleh docker-compose.override.yml untuk dev)
       # KUNCI KEAMANAN: Bind ke 127.0.0.1 agar tidak tembus ke publik
       - "127.0.0.1:8001:80"
     env_file:
@@ -66,7 +74,8 @@ services:
         condition: service_healthy
 
   mqtt_worker:
-    build: .
+    build:
+      context: .
     container_name: pcb_pkl_mqtt_worker
     restart: always
     command: python app/mqtt/mqtt_worker.py
