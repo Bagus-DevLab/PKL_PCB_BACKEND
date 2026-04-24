@@ -2,7 +2,7 @@
 from .device import DeviceClaim, DeviceResponse, DeviceRegister
 
 # User schemas
-from .user import UserResponse, UpdateUserRole
+from .user import UserResponse, UpdateUserRole, UpdateUserName
 
 # Sensor schemas
 from .sensor import LogResponse
@@ -15,6 +15,7 @@ __all__ = [
     # User
     "UserResponse",
     "UpdateUserRole",
+    "UpdateUserName",
     # Sensor
     "LogResponse",
 ]

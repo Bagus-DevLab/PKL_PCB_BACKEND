@@ -18,10 +18,10 @@ MQTT_BROKER = settings.MQTT_BROKER
 MQTT_PORT = settings.MQTT_PORT
 MQTT_TOPIC = settings.MQTT_TOPIC
 
-# Konfigurasi Alert Thresholds (bisa di-override via environment)
-ALERT_TEMP_MAX = float(getattr(settings, 'ALERT_TEMP_MAX', 35))
-ALERT_TEMP_MIN = float(getattr(settings, 'ALERT_TEMP_MIN', 20))
-ALERT_AMMONIA_MAX = float(getattr(settings, 'ALERT_AMMONIA_MAX', 20))
+# Konfigurasi Alert Thresholds (dari .env, ada default di Settings)
+ALERT_TEMP_MAX = float(settings.ALERT_TEMP_MAX)
+ALERT_TEMP_MIN = float(settings.ALERT_TEMP_MIN)
+ALERT_AMMONIA_MAX = float(settings.ALERT_AMMONIA_MAX)
 
 # Batas wajar sensor (untuk validasi)
 SENSOR_TEMP_MIN = -40.0
@@ -34,21 +34,28 @@ SENSOR_AMMONIA_MAX = 500.0
 def validate_sensor_data(payload: dict) -> dict | None:
     """
     Validasi payload sensor data dari MQTT.
+    Tolak payload yang tidak lengkap (field wajib: temperature, humidity, ammonia).
     """
+    # Cek field wajib ada di payload
+    required_fields = ["temperature", "humidity", "ammonia"]
+    for field in required_fields:
+        if field not in payload:
+            logger.warning(f"Payload tidak lengkap: field '{field}' tidak ditemukan")
+            return None
+
     try:
-        # SEKARANG SUDAH SAMA DENGAN ESP32: "temperature", "humidity", "ammonia"
-        temp = float(payload.get("temperature", 0)) 
-        humidity = float(payload.get("humidity", 0))
-        ammonia = float(payload.get("ammonia", 0))
+        temp = float(payload["temperature"])
+        humidity = float(payload["humidity"])
+        ammonia = float(payload["ammonia"])
     except (TypeError, ValueError):
         return None
     
-    # Cek batas wajar sensor (Abaikan kalau nilainya pas 0 karena itu default kalau error)
-    if temp != 0 and not (SENSOR_TEMP_MIN <= temp <= SENSOR_TEMP_MAX):
+    # Cek batas wajar sensor
+    if not (SENSOR_TEMP_MIN <= temp <= SENSOR_TEMP_MAX):
         return None
-    if humidity != 0 and not (SENSOR_HUMID_MIN <= humidity <= SENSOR_HUMID_MAX):
+    if not (SENSOR_HUMID_MIN <= humidity <= SENSOR_HUMID_MAX):
         return None
-    if ammonia != 0 and not (SENSOR_AMMONIA_MIN <= ammonia <= SENSOR_AMMONIA_MAX):
+    if not (SENSOR_AMMONIA_MIN <= ammonia <= SENSOR_AMMONIA_MAX):
         return None
     
     return {"temp": temp, "humidity": humidity, "ammonia": ammonia}
@@ -71,7 +78,12 @@ def on_disconnect(client, userdata, rc):
 def on_message(client, userdata, msg):
     db = SessionLocal()
     try:
-        raw_mac = msg.topic.split("/")[1]
+        # Validasi format topic: harus "devices/{mac}/data"
+        topic_parts = msg.topic.split("/")
+        if len(topic_parts) < 2:
+            logger.warning(f"Format topic tidak valid: {msg.topic}")
+            return
+        raw_mac = topic_parts[1]
         
         # Pengecekan dan format MAC Address (XX:XX:XX:XX:XX:XX)
         mac_address = raw_mac.strip().upper()
@@ -100,14 +112,12 @@ def on_message(client, userdata, msg):
         is_alert = False
         alert_msg = ""
 
-        # Hanya cek alert kalau suhunya valid (Bukan 0 dari hasil fallback)
-        if temp > 0:
-            if temp > ALERT_TEMP_MAX:
-                is_alert = True
-                alert_msg += "Suhu Terlalu Panas! "
-            elif temp < ALERT_TEMP_MIN:
-                is_alert = True
-                alert_msg += "Suhu Terlalu Dingin! "
+        if temp > ALERT_TEMP_MAX:
+            is_alert = True
+            alert_msg += "Suhu Terlalu Panas! "
+        elif temp < ALERT_TEMP_MIN:
+            is_alert = True
+            alert_msg += "Suhu Terlalu Dingin! "
 
         if ammonia > ALERT_AMMONIA_MAX:
             is_alert = True

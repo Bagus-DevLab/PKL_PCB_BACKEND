@@ -44,12 +44,12 @@ async def firebase_login(request: Request, data: FirebaseLoginRequest, db: Sessi
         decoded_token = auth.verify_id_token(data.id_token)
 
         email = decoded_token.get('email')
+        if not email:
+            raise ValueError("Email tidak ditemukan dalam payload token Firebase.")
+
         # Ambil nama dari Firebase, kalau kosong pakai nama depan dari email
         full_name = decoded_token.get('name') or email.split('@')[0]
         picture = decoded_token.get('picture', '')
-
-        if not email:
-            raise ValueError("Email tidak ditemukan dalam payload token Firebase.")
 
         # 2. Cek User di DB PostgreSQL kita
         user_db = db.query(User).filter(User.email == email).first()

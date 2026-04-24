@@ -9,8 +9,10 @@ __pycache__
 .venv
 venv
 
-# Environment (secrets — jangan masuk ke image)
+# Environment & Credentials (secrets — jangan masuk ke image)
 .env
+firebase-adminsdk.json
+*-firebase-adminsdk-*.json
 
 # IDE
 .vscode

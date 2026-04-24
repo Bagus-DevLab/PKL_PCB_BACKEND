@@ -1,57 +1,113 @@
-name: Deploy API-PCB to VPS
+name: Deploy PKL-PCB to VPS
 
 on:
   push:
     branches:
-      - main # Akan berjalan otomatis setiap ada push ke branch main
-    # paths:
+      - main
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Kode
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
+      # Step 1: Buat file .env secara lokal di runner (aman, tidak via SSH heredoc)
+      - name: Buat file .env dari secret
+        run: printf '%s' "${{ secrets.ENV_FILE }}" | tr -d '\r' > .env.production
+
+      # Step 2: Copy semua file project + .env ke VPS via SCP
       - name: Copy file ke VPS via SCP
-        uses: appleboy/scp-action@v0.1.4
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "."
+          source: ".,!.git,!.venv,!node_modules,!pcb-landing-page/node_modules,!__pycache__"
           target: "/opt/api-pcb"
 
-      - name: Jalankan Docker Compose di VPS
-        uses: appleboy/ssh-action@v0.1.10
+      # Step 3: Copy .env secara terpisah (overwrite yang lama)
+      - name: Copy .env ke VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: ".env.production"
+          target: "/opt/api-pcb"
+
+      # Step 4: Deploy di VPS
+      - name: Deploy Docker di VPS
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd /opt/api-pcb
-            
-            # 1. Pastikan folder tersedia
-            mkdir -p mosquitto/log mosquitto/data mosquitto/config
-            chmod 777 logs
+
+            # 1. Pindahkan .env.production ke .env
+            mv -f .env.production .env
+
+            # 2. Pastikan folder tersedia dengan permission yang benar
+            mkdir -p mosquitto/log mosquitto/data mosquitto/config logs
+            chmod 755 logs
             touch mosquitto/log/mosquitto.log
-            
-            # 2. Suntikkan file .env dan HAPUS karakter siluman Windows (\r)
-            cat << 'EOF' | tr -d '\r' > .env
-            ${{ secrets.ENV_FILE }}
-            EOF
-            
-            # 3. Ambil Username & Password dari file .env yang sudah bersih
-            M_USER=$(grep MQTT_USERNAME .env | cut -d '=' -f2)
-            M_PASS=$(grep MQTT_PASSWORD .env | cut -d '=' -f2)
-            
-            # 4. Generate file passwd beneran
-            docker run --rm -v /opt/api-pcb/mosquitto/config:/mosquitto/config eclipse-mosquitto mosquitto_passwd -c -b /mosquitto/config/passwd $M_USER $M_PASS
-            
-            # 5. Amankan file dan reset kepemilikan
+
+            # 3. Setup MQTT credentials
+            M_USER=$(grep MQTT_USERNAME .env | cut -d '=' -f2 | tr -d '\r')
+            M_PASS=$(grep MQTT_PASSWORD .env | cut -d '=' -f2 | tr -d '\r')
+
+            if [ -n "$M_USER" ] && [ -n "$M_PASS" ]; then
+              docker run --rm \
+                -v /opt/api-pcb/mosquitto/config:/mosquitto/config \
+                eclipse-mosquitto mosquitto_passwd -c -b /mosquitto/config/passwd "$M_USER" "$M_PASS"
+            fi
+
+            # 4. Amankan file Mosquitto
             chown -R 1883:1883 mosquitto
             chmod 0700 mosquitto/log/mosquitto.log
-            chmod 0700 mosquitto/config/passwd
-            
-            # 6. Restart Docker
-            docker compose -f docker-compose.yml down
-            docker compose -f docker-compose.yml up -d --build
+            [ -f mosquitto/config/passwd ] && chmod 0700 mosquitto/config/passwd
+
+            # 5. Backup database sebelum deploy (safety net)
+            if docker ps --format '{{.Names}}' | grep -q pcb_pkl_postgres; then
+              echo "Membuat backup database sebelum deploy..."
+              docker exec -u postgres pcb_pkl_postgres pg_dump \
+                -U "$(grep POSTGRES_USER .env | cut -d '=' -f2 | tr -d '\r')" \
+                -d "$(grep POSTGRES_DB .env | cut -d '=' -f2 | tr -d '\r')" \
+                --no-owner --no-privileges \
+                | gzip > /opt/api-pcb/backups/pre_deploy_$(date +%Y%m%d_%H%M%S).sql.gz
+              echo "Backup selesai."
+            fi
+
+            # 6. Build dan deploy (production mode — tanpa override)
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml build
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+            # 7. Tunggu backend healthy (max 60 detik)
+            echo "Menunggu backend healthy..."
+            for i in $(seq 1 12); do
+              sleep 5
+              if docker ps --format '{{.Names}} {{.Status}}' | grep pcb_pkl_backend | grep -q healthy; then
+                echo "Backend healthy!"
+                break
+              fi
+              echo "Menunggu... ($((i*5))s)"
+            done
+
+            # 8. Verifikasi health check
+            HEALTH=$(docker exec pcb_pkl_backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:80/api/health').read().decode())" 2>/dev/null || echo "FAILED")
+
+            if echo "$HEALTH" | grep -q "healthy"; then
+              echo "Deploy SUKSES! Health check passed."
+            else
+              echo "PERINGATAN: Health check gagal. Response: $HEALTH"
+              echo "Cek logs: docker logs pcb_pkl_backend --tail 50"
+              exit 1
+            fi
+
+            # 9. Jalankan migration (jika ada)
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T backend alembic upgrade head || true
+
+            # 10. Bersihkan image lama
+            docker image prune -f
