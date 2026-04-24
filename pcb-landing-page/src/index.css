@@ -6,11 +6,12 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --color-pcb-blue: #3C91E6;
-  --color-pcb-dark: #342E37;
-  --color-pcb-green: #A2D729;
-  --color-pcb-light: #FAFFFD;
-  --color-pcb-orange: #FA824C;
+  /* Earthy palette — konsisten untuk landing page + admin dashboard */
+  --color-pcb-primary: #3F4739;   /* Deep forest green — headings, buttons, sidebar */
+  --color-pcb-secondary: #717568; /* Dark olive — body text, icons */
+  --color-pcb-sage: #BACBA9;      /* Sage green — borders, muted elements */
+  --color-pcb-mint: #E1F4CB;      /* Light mint — backgrounds, success states */
+  --color-pcb-sand: #F1BF98;      /* Warm sand — accent, highlights, CTA */
 }
 
 :root {

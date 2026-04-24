@@ -3,7 +3,7 @@ import { Heart, Cpu } from 'lucide-react';
 
 export default function Footer() {
   return (
-    <footer className="bg-slate-50 border-t border-slate-200 pt-16 pb-8 px-6">
+    <footer className="bg-pcb-mint/20 border-t border-pcb-sage/30 pt-16 pb-8 px-6">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -15,7 +15,7 @@ export default function Footer() {
           {/* Brand */}
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-7 h-7 bg-pcb-blue rounded-lg flex items-center justify-center">
+              <div className="w-7 h-7 bg-pcb-primary rounded-lg flex items-center justify-center">
                 <Cpu className="w-3.5 h-3.5 text-white" />
               </div>
               <span className="text-lg font-bold text-slate-900">
@@ -31,9 +31,9 @@ export default function Footer() {
           <div>
             <h4 className="text-sm font-semibold text-slate-900 mb-4 uppercase tracking-wider">Navigasi</h4>
             <ul className="space-y-2.5 text-sm">
-              <li><a href="#beranda" className="text-slate-500 hover:text-slate-900 transition-colors">Beranda</a></li>
-              <li><a href="#fitur" className="text-slate-500 hover:text-slate-900 transition-colors">Fitur Sistem</a></li>
-              <li><a href="/admin/login" className="text-slate-500 hover:text-slate-900 transition-colors">Admin Panel</a></li>
+              <li><a href="#beranda" className="text-pcb-secondary hover:text-pcb-primary transition-colors">Beranda</a></li>
+              <li><a href="#fitur" className="text-pcb-secondary hover:text-pcb-primary transition-colors">Fitur Sistem</a></li>
+              <li><a href="/admin/login" className="text-pcb-secondary hover:text-pcb-primary transition-colors">Admin Panel</a></li>
             </ul>
           </div>
 
@@ -58,7 +58,7 @@ export default function Footer() {
         </div>
 
         {/* Copyright */}
-        <div className="pt-8 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-slate-400 text-xs gap-3">
+        <div className="pt-8 border-t border-pcb-sage/30 flex flex-col sm:flex-row items-center justify-between text-pcb-secondary text-xs gap-3">
           <p className="flex items-center gap-1">
             &copy; {new Date().getFullYear()} PCB Smart Kandang. Made with <Heart className="w-3 h-3 text-red-400 mx-0.5" /> by Bagus.
           </p>

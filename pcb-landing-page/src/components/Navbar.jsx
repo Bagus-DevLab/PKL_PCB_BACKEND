@@ -41,7 +41,7 @@ export default function Navbar() {
           onClick={(e) => handleScrollTo(e, 'beranda')}
           className="flex items-center gap-2 cursor-pointer group"
         >
-          <div className="w-8 h-8 bg-pcb-blue rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform">
+          <div className="w-8 h-8 bg-pcb-primary rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform">
             <Cpu className="w-4 h-4 text-white" />
           </div>
           <span className="text-xl font-bold text-slate-900">
@@ -54,20 +54,20 @@ export default function Navbar() {
           <a
             href="#beranda"
             onClick={(e) => handleScrollTo(e, 'beranda')}
-            className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+            className="text-sm font-medium text-pcb-secondary hover:text-pcb-primary transition-colors"
           >
             Beranda
           </a>
           <a
             href="#fitur"
             onClick={(e) => handleScrollTo(e, 'fitur')}
-            className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+            className="text-sm font-medium text-pcb-secondary hover:text-pcb-primary transition-colors"
           >
             Fitur Utama
           </a>
           <a
             href="/admin/login"
-            className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+            className="text-sm font-medium text-pcb-secondary hover:text-pcb-primary transition-colors"
           >
             Admin
           </a>
@@ -107,9 +107,9 @@ export default function Navbar() {
             className="md:hidden bg-white/95 backdrop-blur-xl border-b border-slate-200 overflow-hidden"
           >
             <div className="px-6 py-4 flex flex-col gap-3">
-              <a href="#beranda" onClick={(e) => handleScrollTo(e, 'beranda')} className="text-slate-700 hover:text-pcb-blue font-medium py-2">Beranda</a>
-              <a href="#fitur" onClick={(e) => handleScrollTo(e, 'fitur')} className="text-slate-700 hover:text-pcb-blue font-medium py-2">Fitur Utama</a>
-              <a href="/admin/login" className="text-slate-700 hover:text-pcb-blue font-medium py-2">Admin</a>
+              <a href="#beranda" onClick={(e) => handleScrollTo(e, 'beranda')}             className="text-pcb-secondary hover:text-pcb-primary font-medium py-2">Beranda</a>
+              <a href="#fitur" onClick={(e) => handleScrollTo(e, 'fitur')}             className="text-pcb-secondary hover:text-pcb-primary font-medium py-2">Fitur Utama</a>
+              <a href="/admin/login"             className="text-pcb-secondary hover:text-pcb-primary font-medium py-2">Admin</a>
               <Button asChild className="w-full mt-2 rounded-lg font-semibold">
                 <a href="#" target="_blank" rel="noopener noreferrer">Download Aplikasi</a>
               </Button>

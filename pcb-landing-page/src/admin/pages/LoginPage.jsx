@@ -27,8 +27,8 @@ export default function LoginPage({ onLogin, error, setError, loading }) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
       {/* Subtle background */}
-      <div className="absolute inset-0 -z-10 opacity-[0.02]" style={{
-        backgroundImage: 'radial-gradient(circle, #3C91E6 1px, transparent 1px)',
+      <div className="absolute inset-0 -z-10 opacity-[0.03]" style={{
+        backgroundImage: 'radial-gradient(circle, #3F4739 1px, transparent 1px)',
         backgroundSize: '32px 32px'
       }} />
 
@@ -44,7 +44,7 @@ export default function LoginPage({ onLogin, error, setError, loading }) {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ duration: 0.4, delay: 0.1, type: "spring" }}
-            className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            className="w-12 h-12 bg-pcb-primary rounded-2xl flex items-center justify-center mx-auto mb-4"
           >
             <Cpu className="w-6 h-6 text-white" />
           </motion.div>
@@ -52,7 +52,7 @@ export default function LoginPage({ onLogin, error, setError, loading }) {
           <p className="text-sm text-slate-400 mt-1">Masuk untuk mengelola sistem</p>
         </div>
 
-        <Card className="border-slate-200/60 shadow-sm">
+        <Card className="border-pcb-sage/30 shadow-sm">
           <CardContent className="p-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">

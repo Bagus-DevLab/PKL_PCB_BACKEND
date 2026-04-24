@@ -87,7 +87,7 @@ export default function DevicesPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
       >
-        <Card className="mb-6 border-slate-200/60">
+        <Card className="mb-6 border-pcb-sage/30">
           <CardContent className="p-6">
             <div className="flex items-center gap-2 mb-4">
               <Plus className="w-4 h-4 text-slate-400" />
@@ -151,7 +151,7 @@ export default function DevicesPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.1 }}
       >
-        <Card className="border-slate-200/60">
+        <Card className="border-pcb-sage/30">
           <CardContent className="p-0">
             {/* Table Header */}
             <div className="flex items-center justify-between p-4 border-b border-slate-100">

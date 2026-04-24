@@ -9,13 +9,13 @@ const badgeVariants = cva(
         variants: {
             variant: {
                 default:
-                    "border-transparent bg-pcb-blue text-pcb-light shadow hover:bg-pcb-blue/80",
+                    "border-transparent bg-pcb-primary text-white shadow hover:bg-pcb-primary/80",
                 secondary:
-                    "border-transparent bg-pcb-dark text-pcb-light hover:bg-pcb-dark/80",
+                    "border-transparent bg-pcb-secondary text-white hover:bg-pcb-secondary/80",
                 destructive:
-                    "border-transparent bg-red-500 text-slate-50 shadow hover:bg-red-500/80",
-                outline: "text-foreground",
-                success: "border-transparent bg-pcb-green text-pcb-dark shadow hover:bg-pcb-green/80",
+                    "border-transparent bg-red-500 text-white shadow hover:bg-red-500/80",
+                outline: "text-foreground border-pcb-sage/50",
+                success: "border-transparent bg-pcb-mint text-pcb-primary shadow hover:bg-pcb-mint/80",
             },
         },
         defaultVariants: {

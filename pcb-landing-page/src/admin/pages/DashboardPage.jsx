@@ -65,28 +65,28 @@ export default function DashboardPage() {
 
   const cards = stats
     ? [
-        { title: "Total User", value: stats.total_users, icon: Users, color: "text-blue-500", bg: "bg-blue-50" },
-        { title: "Super Admin", value: stats.total_super_admins, icon: Crown, color: "text-red-500", bg: "bg-red-50" },
-        { title: "Admin", value: stats.total_admins, icon: ShieldCheck, color: "text-purple-500", bg: "bg-purple-50" },
-        { title: "Operator", value: stats.total_operators, icon: Wrench, color: "text-blue-500", bg: "bg-blue-50" },
-        { title: "Viewer", value: stats.total_viewers, icon: Eye, color: "text-emerald-500", bg: "bg-emerald-50" },
-        { title: "Total Device", value: stats.total_devices, icon: Cpu, color: "text-slate-600", bg: "bg-slate-100" },
-        { title: "Diklaim", value: stats.total_devices_claimed, icon: Package, color: "text-green-500", bg: "bg-green-50" },
-        { title: "Belum Diklaim", value: stats.total_devices_unclaimed, icon: Package, color: "text-amber-500", bg: "bg-amber-50" },
-        { title: "Online", value: stats.total_devices_online, icon: Wifi, color: "text-emerald-500", bg: "bg-emerald-50" },
-        { title: "Assignments", value: stats.total_assignments, icon: Link2, color: "text-indigo-500", bg: "bg-indigo-50" },
+        { title: "Total User", value: stats.total_users, icon: Users, color: "text-pcb-primary", bg: "bg-pcb-mint/40" },
+        { title: "Super Admin", value: stats.total_super_admins, icon: Crown, color: "text-pcb-sand", bg: "bg-pcb-sand/20" },
+        { title: "Admin", value: stats.total_admins, icon: ShieldCheck, color: "text-pcb-primary", bg: "bg-pcb-primary/10" },
+        { title: "Operator", value: stats.total_operators, icon: Wrench, color: "text-pcb-secondary", bg: "bg-pcb-sage/30" },
+        { title: "Viewer", value: stats.total_viewers, icon: Eye, color: "text-pcb-secondary", bg: "bg-pcb-mint/50" },
+        { title: "Total Device", value: stats.total_devices, icon: Cpu, color: "text-pcb-primary", bg: "bg-pcb-sage/20" },
+        { title: "Diklaim", value: stats.total_devices_claimed, icon: Package, color: "text-pcb-primary", bg: "bg-pcb-mint/40" },
+        { title: "Belum Diklaim", value: stats.total_devices_unclaimed, icon: Package, color: "text-pcb-sand", bg: "bg-pcb-sand/15" },
+        { title: "Online", value: stats.total_devices_online, icon: Wifi, color: "text-pcb-primary", bg: "bg-pcb-mint/50" },
+        { title: "Assignments", value: stats.total_assignments, icon: Link2, color: "text-pcb-secondary", bg: "bg-pcb-sage/20" },
       ]
     : [];
 
   // Chart data from stats
   const chartData = stats
     ? [
-        { name: "Users", value: stats.total_users, fill: "#3b82f6" },
-        { name: "Admin", value: stats.total_admins, fill: "#a855f7" },
-        { name: "Operator", value: stats.total_operators, fill: "#3b82f6" },
-        { name: "Viewer", value: stats.total_viewers, fill: "#10b981" },
-        { name: "Device", value: stats.total_devices, fill: "#64748b" },
-        { name: "Online", value: stats.total_devices_online, fill: "#22c55e" },
+        { name: "Users", value: stats.total_users, fill: "#3F4739" },
+        { name: "Admin", value: stats.total_admins, fill: "#717568" },
+        { name: "Operator", value: stats.total_operators, fill: "#BACBA9" },
+        { name: "Viewer", value: stats.total_viewers, fill: "#E1F4CB" },
+        { name: "Device", value: stats.total_devices, fill: "#3F4739" },
+        { name: "Online", value: stats.total_devices_online, fill: "#F1BF98" },
       ]
     : [];
 
@@ -113,7 +113,7 @@ export default function DashboardPage() {
         >
           {cards.map((card) => (
             <motion.div key={card.title} variants={cardVariants}>
-              <Card className="border-slate-200/60 hover:border-slate-300 transition-colors">
+              <Card className="border-pcb-sage/30 hover:border-pcb-sage/60 transition-colors">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
@@ -143,7 +143,7 @@ export default function DashboardPage() {
           transition={{ duration: 0.5, delay: 0.4 }}
           className="mt-8"
         >
-          <Card className="border-slate-200/60">
+          <Card className="border-pcb-sage/30">
             <CardContent className="p-6">
               <div className="flex items-center gap-2 mb-6">
                 <TrendingUp className="w-4 h-4 text-slate-400" />

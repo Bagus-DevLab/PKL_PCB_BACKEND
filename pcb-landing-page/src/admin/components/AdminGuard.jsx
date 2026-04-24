@@ -10,7 +10,7 @@ export default function AdminGuard({ isAdmin, loading, children }) {
           animate={{ rotate: 360 }}
           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
         >
-          <Loader2 className="w-6 h-6 text-pcb-blue" />
+          <Loader2 className="w-6 h-6 text-pcb-primary" />
         </motion.div>
         <p className="text-sm text-slate-400">Memverifikasi akses...</p>
       </div>

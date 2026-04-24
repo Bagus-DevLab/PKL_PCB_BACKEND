@@ -167,7 +167,7 @@ export default function UsersPage() {
       </div>
 
       {/* Table */}
-      <Card className="border-slate-200/60">
+      <Card className="border-pcb-sage/30">
         <CardContent className="p-0">
           {loading ? (
             <TableSkeleton />
@@ -203,10 +203,10 @@ export default function UsersPage() {
                       <TableCell>
                         {(() => {
                           const roleConfig = {
-                            super_admin: { icon: Crown, label: "Super Admin", cls: "bg-red-100 text-red-700 hover:bg-red-100" },
-                            admin: { icon: ShieldCheck, label: "Admin", cls: "bg-purple-100 text-purple-700 hover:bg-purple-100" },
-                            operator: { icon: Wrench, label: "Operator", cls: "bg-blue-100 text-blue-700 hover:bg-blue-100" },
-                            viewer: { icon: Eye, label: "Viewer", cls: "bg-emerald-100 text-emerald-700 hover:bg-emerald-100" },
+                            super_admin: { icon: Crown, label: "Super Admin", cls: "bg-pcb-sand/30 text-pcb-sand hover:bg-pcb-sand/30" },
+                            admin: { icon: ShieldCheck, label: "Admin", cls: "bg-pcb-primary/10 text-pcb-primary hover:bg-pcb-primary/10" },
+                            operator: { icon: Wrench, label: "Operator", cls: "bg-pcb-mint/50 text-pcb-primary hover:bg-pcb-mint/50" },
+                            viewer: { icon: Eye, label: "Viewer", cls: "bg-pcb-sage/30 text-pcb-secondary hover:bg-pcb-sage/30" },
                             user: { icon: User, label: "User", cls: "" },
                           };
                           const cfg = roleConfig[user.role] || roleConfig.user;

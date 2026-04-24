@@ -17,7 +17,7 @@ export default function AdminLayout({ user, onLogout }) {
   const pageTitle = pageTitles[location.pathname] || "Admin";
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-pcb-mint/10">
       <Sidebar
         user={user}
         onLogout={onLogout}
@@ -27,7 +27,7 @@ export default function AdminLayout({ user, onLogout }) {
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Bar */}
-        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200 px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+        <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-pcb-sage/30 px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
@@ -37,15 +37,15 @@ export default function AdminLayout({ user, onLogout }) {
             >
               <Menu className="w-4 h-4" />
             </Button>
-            <h1 className="text-sm font-semibold text-slate-900">{pageTitle}</h1>
+            <h1 className="text-sm font-semibold text-pcb-primary">{pageTitle}</h1>
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400">
+            <div className="hidden sm:flex items-center gap-2 text-xs text-pcb-secondary">
               <Cpu className="w-3.5 h-3.5" />
               <span>PCB Admin</span>
             </div>
-            <div className="w-7 h-7 rounded-full bg-slate-900 flex items-center justify-center text-white text-xs font-medium">
+            <div className="w-7 h-7 rounded-full bg-pcb-primary flex items-center justify-center text-white text-xs font-medium">
               {(user?.full_name || user?.email || "A").charAt(0).toUpperCase()}
             </div>
           </div>

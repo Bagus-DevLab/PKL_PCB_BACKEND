@@ -7,17 +7,17 @@ export default function Hero() {
   return (
     <section id="beranda" className="relative min-h-screen flex items-center justify-center overflow-hidden px-6 pt-20">
       {/* Background gradient */}
-      <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-blue-50/30 to-slate-50 -z-20" />
+      <div className="absolute inset-0 bg-gradient-to-b from-white via-pcb-mint/20 to-white -z-20" />
 
       {/* Decorative grid pattern */}
-      <div className="absolute inset-0 -z-10 opacity-[0.03]" style={{
-        backgroundImage: 'radial-gradient(circle, #3C91E6 1px, transparent 1px)',
+      <div className="absolute inset-0 -z-10 opacity-[0.04]" style={{
+        backgroundImage: 'radial-gradient(circle, #3F4739 1px, transparent 1px)',
         backgroundSize: '32px 32px'
       }} />
 
       {/* Glow effects */}
-      <div className="absolute top-1/3 left-1/4 w-[500px] h-[500px] bg-blue-200/30 rounded-full blur-[120px] -z-10" />
-      <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-cyan-200/20 rounded-full blur-[100px] -z-10" />
+      <div className="absolute top-1/3 left-1/4 w-[500px] h-[500px] bg-pcb-mint/40 rounded-full blur-[120px] -z-10" />
+      <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-pcb-sand/20 rounded-full blur-[100px] -z-10" />
 
       <div className="z-10 text-center max-w-4xl mx-auto flex flex-col items-center">
         {/* Badge */}
@@ -27,8 +27,8 @@ export default function Hero() {
           transition={{ duration: 0.6 }}
           className="mb-8"
         >
-          <Badge variant="outline" className="px-4 py-1.5 text-sm font-medium border-slate-200 text-slate-600 bg-white/80 backdrop-blur-sm shadow-sm rounded-full">
-            <Activity className="w-3.5 h-3.5 mr-2 inline-block animate-pulse text-pcb-blue" />
+          <Badge variant="outline" className="px-4 py-1.5 text-sm font-medium border-pcb-sage/40 text-pcb-secondary bg-white/80 backdrop-blur-sm shadow-sm rounded-full">
+            <Activity className="w-3.5 h-3.5 mr-2 inline-block animate-pulse text-pcb-primary" />
             Sistem Pemantauan Cerdas v2.0
           </Badge>
         </motion.div>
@@ -41,7 +41,7 @@ export default function Hero() {
           className="text-4xl sm:text-5xl md:text-7xl font-extrabold mb-6 text-slate-900 leading-[1.1] tracking-tight"
         >
           Monitoring{' '}
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-pcb-blue to-cyan-500">
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-pcb-primary to-pcb-secondary">
             Smart Kandang
           </span>
           <br className="hidden sm:block" />
@@ -69,7 +69,7 @@ export default function Hero() {
           <Button
             asChild
             size="lg"
-            className="w-full sm:w-auto rounded-full font-semibold shadow-lg shadow-pcb-blue/20 hover:shadow-xl hover:shadow-pcb-blue/30 transition-all h-12 px-8"
+            className="w-full sm:w-auto rounded-full font-semibold shadow-lg shadow-pcb-primary/20 hover:shadow-xl hover:shadow-pcb-primary/30 transition-all h-12 px-8"
           >
             <a href="#fitur">
               Lihat Fitur Utama
@@ -81,7 +81,7 @@ export default function Hero() {
             asChild
             variant="outline"
             size="lg"
-            className="w-full sm:w-auto border-slate-200 text-slate-700 hover:bg-white rounded-full font-semibold transition-all h-12 px-8 bg-white/80 backdrop-blur-sm"
+            className="w-full sm:w-auto border-pcb-sage/40 text-pcb-primary hover:bg-pcb-mint/30 rounded-full font-semibold transition-all h-12 px-8 bg-white/80 backdrop-blur-sm"
           >
             <a href="/admin/login">
               Buka Admin Panel
@@ -97,16 +97,16 @@ export default function Hero() {
           className="flex flex-wrap justify-center gap-3 sm:gap-4"
         >
           {[
-            { icon: ThermometerSun, label: 'Suhu', value: '28.5°C', color: 'text-orange-500', bg: 'bg-orange-50' },
-            { icon: Droplets, label: 'Kelembaban', value: '72%', color: 'text-blue-500', bg: 'bg-blue-50' },
-            { icon: Wind, label: 'Amonia', value: '12 ppm', color: 'text-emerald-500', bg: 'bg-emerald-50' },
+            { icon: ThermometerSun, label: 'Suhu', value: '28.5°C', color: 'text-pcb-sand', bg: 'bg-pcb-sand/20' },
+            { icon: Droplets, label: 'Kelembaban', value: '72%', color: 'text-pcb-primary', bg: 'bg-pcb-mint/50' },
+            { icon: Wind, label: 'Amonia', value: '12 ppm', color: 'text-pcb-secondary', bg: 'bg-pcb-sage/30' },
           ].map((item, i) => (
             <motion.div
               key={item.label}
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.4, delay: 0.9 + i * 0.1 }}
-              className="flex items-center gap-3 bg-white/80 backdrop-blur-sm border border-slate-200/60 rounded-xl px-4 py-3 shadow-sm"
+              className="flex items-center gap-3 bg-white/80 backdrop-blur-sm border border-pcb-sage/30 rounded-xl px-4 py-3 shadow-sm"
             >
               <div className={`p-2 rounded-lg ${item.bg}`}>
                 <item.icon className={`w-4 h-4 ${item.color}`} />

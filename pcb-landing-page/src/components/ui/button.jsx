@@ -9,12 +9,12 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-pcb-blue text-pcb-light hover:bg-pcb-blue/90",
-        destructive: "bg-red-500 text-slate-50 hover:bg-red-500/90",
-        outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-        secondary: "bg-pcb-dark text-pcb-light hover:bg-pcb-dark/80",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-pcb-blue underline-offset-4 hover:underline",
+        default: "bg-pcb-primary text-white hover:bg-pcb-primary/90",
+        destructive: "bg-red-500 text-white hover:bg-red-500/90",
+        outline: "border border-pcb-sage/50 bg-background hover:bg-pcb-mint/30 hover:text-pcb-primary",
+        secondary: "bg-pcb-sand text-pcb-primary hover:bg-pcb-sand/80",
+        ghost: "hover:bg-pcb-mint/30 hover:text-pcb-primary",
+        link: "text-pcb-primary underline-offset-4 hover:underline",
       },
       size: {
         default: "h-10 px-4 py-2",

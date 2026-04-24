@@ -13,22 +13,22 @@ const categories = [
         title: 'Monitoring Suhu',
         description: 'Pemantauan suhu kandang secara berkala untuk menjaga iklim tetap stabil dan nyaman bagi ternak.',
         icon: ThermometerSun,
-        color: 'text-orange-500',
-        bg: 'bg-orange-50',
+        color: 'text-pcb-sand',
+        bg: 'bg-pcb-sand/20',
       },
       {
         title: 'Monitoring Kelembaban',
         description: 'Pengawasan kelembaban udara untuk mencegah pertumbuhan jamur dan bakteri di lingkungan kandang.',
         icon: Droplets,
-        color: 'text-blue-500',
-        bg: 'bg-blue-50',
+        color: 'text-pcb-primary',
+        bg: 'bg-pcb-mint/50',
       },
       {
         title: 'Monitoring Amonia',
         description: 'Deteksi kadar amonia dari kotoran ayam untuk menjaga kualitas udara dan kesehatan pernapasan.',
         icon: Wind,
-        color: 'text-emerald-500',
-        bg: 'bg-emerald-50',
+        color: 'text-pcb-secondary',
+        bg: 'bg-pcb-sage/30',
       },
     ],
   },
@@ -41,22 +41,22 @@ const categories = [
         title: 'Kontrol Pompa Pembersih',
         description: 'Aktivasi pompa pembersih kotoran secara otomatis berdasarkan kondisi kandang dan jadwal.',
         icon: Waves,
-        color: 'text-cyan-500',
-        bg: 'bg-cyan-50',
+        color: 'text-pcb-primary',
+        bg: 'bg-pcb-primary/10',
       },
       {
         title: 'Manajemen Lampu',
         description: 'Pengaturan jadwal dan intensitas lampu untuk mendukung siklus istirahat dan pertumbuhan ayam.',
         icon: Lightbulb,
-        color: 'text-amber-500',
-        bg: 'bg-amber-50',
+        color: 'text-pcb-sand',
+        bg: 'bg-pcb-sand/20',
       },
       {
         title: 'Otomatisasi Pakan',
         description: 'Distribusi pakan terjadwal dengan kontrol mudah melalui dashboard untuk memastikan asupan cukup.',
         icon: Wheat,
-        color: 'text-indigo-500',
-        bg: 'bg-indigo-50',
+        color: 'text-pcb-secondary',
+        bg: 'bg-pcb-mint/40',
       },
     ],
   },
@@ -83,8 +83,8 @@ export default function Features() {
   return (
     <section id="fitur" className="py-24 px-6 bg-white relative overflow-hidden">
       {/* Subtle background */}
-      <div className="absolute inset-0 -z-10 opacity-[0.02]" style={{
-        backgroundImage: 'radial-gradient(circle, #342E37 1px, transparent 1px)',
+      <div className="absolute inset-0 -z-10 opacity-[0.03]" style={{
+        backgroundImage: 'radial-gradient(circle, #3F4739 1px, transparent 1px)',
         backgroundSize: '24px 24px'
       }} />
 
@@ -97,7 +97,7 @@ export default function Features() {
           transition={{ duration: 0.6 }}
           className="text-center mb-20"
         >
-          <Badge variant="outline" className="mb-4 px-3 py-1 text-xs font-medium rounded-full border-slate-200 text-slate-500">
+          <Badge variant="outline" className="mb-4 px-3 py-1 text-xs font-medium rounded-full border-pcb-sage/40 text-pcb-secondary">
             Fitur Lengkap
           </Badge>
           <h2 className="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight mb-4">
@@ -119,8 +119,8 @@ export default function Features() {
               transition={{ duration: 0.5 }}
               className="flex items-center gap-3 mb-8"
             >
-              <div className="p-2 rounded-lg bg-slate-100">
-                {catIdx === 0 ? <Monitor className="w-4 h-4 text-slate-600" /> : <Zap className="w-4 h-4 text-slate-600" />}
+              <div className="p-2 rounded-lg bg-pcb-mint/40">
+                {catIdx === 0 ? <Monitor className="w-4 h-4 text-pcb-primary" /> : <Zap className="w-4 h-4 text-pcb-primary" />}
               </div>
               <div>
                 <h3 className="text-lg font-semibold text-slate-900">{category.label}</h3>
@@ -138,7 +138,7 @@ export default function Features() {
             >
               {category.features.map((feature) => (
                 <motion.div key={feature.title} variants={cardVariants}>
-                  <Card className="h-full border-slate-200/60 bg-white hover:border-slate-300 hover:shadow-md transition-all duration-300 group cursor-default">
+                  <Card className="h-full border-pcb-sage/30 bg-white hover:border-pcb-sage/60 hover:shadow-md transition-all duration-300 group cursor-default">
                     <CardContent className="p-6">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${feature.bg} transition-transform duration-300 group-hover:scale-110`}>
                         <feature.icon className={`w-5 h-5 ${feature.color}`} />
