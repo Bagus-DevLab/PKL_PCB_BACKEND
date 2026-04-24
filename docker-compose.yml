@@ -42,8 +42,9 @@ services:
     container_name: pcb_pkl_backend
     restart: always
     ports:
+      # Nginx di port 80 internal, expose ke 8001
       # KUNCI KEAMANAN: Bind ke 127.0.0.1 agar tidak tembus ke publik
-      - "127.0.0.1:8001:8000"
+      - "127.0.0.1:8001:80"
     env_file:
       - .env
     volumes:
@@ -51,13 +52,13 @@ services:
       - ./firebase-adminsdk.json:/app/firebase-adminsdk.json
     networks:
       - iot_network
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+    # CMD sudah di-set di Dockerfile (supervisord)
     healthcheck:
-      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/api/health\")' || exit 1"]
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:80/api/health\")' || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 15s
     depends_on:
       postgres:
         condition: service_healthy

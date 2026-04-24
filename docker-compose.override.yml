@@ -4,12 +4,18 @@
 # Untuk production: docker compose -f docker-compose.yml up -d
 # Untuk development: docker compose up -d (otomatis pakai override)
 
-version: "3.9"
-
 services:
   backend:
-    # Development mode dengan hot-reload
+    # Development mode: langsung jalankan Uvicorn dengan hot-reload
+    # (tanpa Nginx, tanpa Supervisor — frontend dijalankan terpisah via npm run dev)
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      # Override port: langsung expose Uvicorn port 8000 ke host 8001
+      - "127.0.0.1:8001:8000"
     volumes:
+      - ./app:/app/app                          # Mount source code untuk hot-reload
+      - ./alembic:/app/alembic                  # Mount alembic untuk migration
+      - ./alembic.ini:/app/alembic.ini
       - ./logs:/app/logs
-      - .:/app  # Mount source code untuk hot-reload
+      - ./firebase-adminsdk.json:/app/firebase-adminsdk.json
+    # Pastikan tetap terhubung ke network (inherit dari docker-compose.yml)

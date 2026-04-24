@@ -1,40 +1,83 @@
-# Gunakan base image Python yang ringan
-FROM python:3.11-slim
+# ============================================================
+# STAGE 1: Build React Frontend
+# ============================================================
+FROM node:20-alpine AS frontend-build
 
-# Set working directory
+WORKDIR /app/frontend
+
+# Copy package files dulu (layer caching)
+COPY pcb-landing-page/package*.json ./
+
+# Install dependencies
+RUN npm ci --production=false
+
+# Copy source code dan build
+COPY pcb-landing-page/ ./
+
+# Build untuk production (output di /app/frontend/dist)
+# Set VITE_API_BASE_URL ke /api karena di production Nginx proxy ke same origin
+ENV VITE_API_BASE_URL=/api
+RUN npm run build
+
+
+# ============================================================
+# STAGE 2: Install Python Dependencies
+# ============================================================
+FROM python:3.11-slim AS backend-build
+
 WORKDIR /app
 
-# Set environment supaya Python gak bikin file .pyc
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-# Install dependency system untuk psycopg2
+# Install build dependencies untuk psycopg2
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements dulu (biar layer caching optimal)
+# Copy dan install Python dependencies
 COPY requirements.txt .
-
-# Tambahin --default-timeout=100 biar dia lebih sabar nunggu koneksi
-RUN pip install --default-timeout=100 --upgrade pip
 RUN pip install --default-timeout=100 --no-cache-dir -r requirements.txt
 
-# Buat user non-root untuk keamanan
-RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 
-# Copy seluruh project
-COPY . .
+# ============================================================
+# STAGE 3: Production Image (Nginx + Uvicorn via Supervisor)
+# ============================================================
+FROM python:3.11-slim
 
-# Buat folder logs dan set ownership
-RUN mkdir -p /app/logs && chown -R appuser:appgroup /app
+WORKDIR /app
 
-# Jalankan sebagai non-root user
-USER appuser
+# Install runtime dependencies: Nginx, Supervisor, libpq (untuk psycopg2)
+RUN apt-get update && apt-get install -y \
+    nginx \
+    supervisor \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
 
-# Expose port FastAPI
-EXPOSE 8000
+# Copy Python packages dari stage 2
+COPY --from=backend-build /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=backend-build /usr/local/bin /usr/local/bin
 
-# Command untuk menjalankan FastAPI
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Copy React build dari stage 1 ke Nginx html directory
+COPY --from=frontend-build /app/frontend/dist /usr/share/nginx/html
+
+# Hapus default Nginx config
+RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf
+
+# Copy custom Nginx config
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Copy Supervisor config
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Copy backend source code
+COPY app/ /app/app/
+COPY alembic/ /app/alembic/
+COPY alembic.ini /app/alembic.ini
+
+# Buat folder logs
+RUN mkdir -p /app/logs
+
+# Expose port 80 (Nginx)
+EXPOSE 80
+
+# Jalankan Supervisor (mengelola Nginx + Uvicorn)
+CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

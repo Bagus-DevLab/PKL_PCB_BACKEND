@@ -1,0 +1,42 @@
+name: Deploy Landing Page ke VPS
+
+on:
+  push:
+    branches:
+      - main # Ubah jadi 'master' kalau branch utama lu namanya master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Copy Files ke VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          # Copy semua file kecuali node_modules dan .git biar cepat
+          source: ".,!node_modules,!.git"
+          target: "~/pcb-landing-page" # Folder tujuan di dalam VPS lu
+
+      - name: 🐳 Build & Restart Docker di VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            # Masuk ke folder project
+            cd ~/pcb-landing-page
+            
+            # Eksekusi Docker Compose (Build ulang image & jalankan di background)
+            docker compose up -d --build
+            
+            # Bersihkan image/container lama biar disk VPS nggak penuh
+            docker image prune -f

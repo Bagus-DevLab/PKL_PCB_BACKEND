@@ -8,24 +8,35 @@ __pycache__
 *.pyo
 .venv
 venv
+
+# Environment (secrets — jangan masuk ke image)
 .env
 
 # IDE
 .vscode
 .idea
 
-# Tests
+# Tests (tidak perlu di production image)
 tests/
 pytest.ini
+.pytest_cache/
 
 # Logs
 logs/
 
-# Docker
+# Docker files sendiri
 Dockerfile
 docker-compose*.yml
 .dockerignore
 
 # Docs
 readme.md
+README.md
 LICENSE
+
+# Frontend build artifacts (npm ci dijalankan di Dockerfile stage 1)
+pcb-landing-page/node_modules
+pcb-landing-page/dist
+pcb-landing-page/.git
+pcb-landing-page/.env
+pcb-landing-page/.env.local
