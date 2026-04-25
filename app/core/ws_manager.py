@@ -63,6 +63,29 @@ class ConnectionManager:
         """Total semua active connections."""
         return sum(len(conns) for conns in self.active_connections.values())
 
+    async def close_device_connections(self, device_id: str, code: int = 4004, reason: str = "Device dihapus"):
+        """
+        Tutup semua WebSocket connections untuk device tertentu.
+        Dipanggil saat device dihapus atau di-unclaim.
+        """
+        if device_id not in self.active_connections:
+            return 0
+
+        connections = self.active_connections[device_id].copy()
+        closed = 0
+        for ws in connections:
+            try:
+                await ws.close(code=code, reason=reason)
+                closed += 1
+            except Exception:
+                pass  # Connection mungkin sudah mati
+
+        # Cleanup — disconnect() akan dipanggil oleh finally block di ws.py,
+        # tapi kita bersihkan juga di sini untuk safety
+        self.active_connections.pop(device_id, None)
+        logger.info(f"Closed {closed} WS connections for device {device_id}")
+        return closed
+
 
 # Singleton instance
 ws_manager = ConnectionManager()

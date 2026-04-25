@@ -29,6 +29,9 @@ router = APIRouter(tags=["WebSocket"])
 
 POLL_INTERVAL = 3
 
+# Sentinel value: device was deleted from DB
+_DEVICE_DELETED = {"_deleted": True}
+
 
 def _authenticate_ws(token: str, db: Session) -> User | None:
     """Authenticate WebSocket via JWT token dari query parameter."""
@@ -70,21 +73,30 @@ def _poll_device_data(device_id: UUID) -> dict | None:
     """
     Poll database untuk data sensor terbaru.
     Buat session baru per poll cycle agar tidak hold connection pool.
+
+    Returns:
+        dict with sensor data — new data available
+        None — no new data (device exists but no logs yet)
+        _DEVICE_DELETED — device no longer exists in DB
     """
     db = SessionLocal()
     try:
+        # Query Device dulu untuk deteksi deletion
+        device = db.query(Device).filter(Device.id == device_id).first()
+
+        if not device:
+            return _DEVICE_DELETED
+
         latest_log = db.query(SensorLog).filter(
             SensorLog.device_id == device_id
         ).order_by(SensorLog.timestamp.desc()).first()
-
-        device = db.query(Device).filter(Device.id == device_id).first()
 
         if not latest_log:
             return None
 
         # Hitung is_online
         is_online = False
-        if device and device.last_heartbeat:
+        if device.last_heartbeat:
             last_hb = device.last_heartbeat
             if last_hb.tzinfo is None:
                 last_hb = last_hb.replace(tzinfo=timezone.utc)
@@ -95,7 +107,7 @@ def _poll_device_data(device_id: UUID) -> dict | None:
             "log_id": latest_log.id,
             "type": "sensor_data",
             "device_id": str(device_id),
-            "device_name": device.name if device else None,
+            "device_name": device.name,
             "is_online": is_online,
             "latest": {
                 "id": latest_log.id,
@@ -153,18 +165,23 @@ async def websocket_device_stream(
     last_log_id = 0
 
     try:
-        # Polling loop
-        # - asyncio.to_thread() agar blocking DB call tidak blokir event loop
-        # - send_json ke websocket sendiri (bukan broadcast) agar tidak N^2 duplicate
         while True:
             try:
                 data = await asyncio.to_thread(_poll_device_data, device_id)
+
+                # Device dihapus dari DB — tutup WebSocket dengan kode khusus
+                if data is _DEVICE_DELETED:
+                    logger.info(f"Device {device_id} deleted, closing WS for {user_email}")
+                    try:
+                        await websocket.close(code=4004, reason="Device telah dihapus")
+                    except Exception:
+                        pass
+                    break
 
                 if data and data["log_id"] != last_log_id:
                     last_log_id = data["log_id"]
                     data["subscribers"] = ws_manager.get_subscriber_count(device_id_str)
                     del data["log_id"]
-                    # Kirim ke websocket sendiri, bukan broadcast ke semua subscriber
                     await websocket.send_json(data)
 
                 await asyncio.sleep(POLL_INTERVAL)
@@ -172,8 +189,10 @@ async def websocket_device_stream(
             except WebSocketDisconnect:
                 break
             except Exception as e:
-                logger.error(f"WS polling error: {e}")
-                await asyncio.sleep(POLL_INTERVAL)
+                # Semua exception lain (RuntimeError, ConnectionResetError, dll)
+                # berarti koneksi sudah mati — BREAK, jangan lanjut polling.
+                logger.warning(f"WS connection lost for {user_email}: {e}")
+                break
 
     except WebSocketDisconnect:
         pass

@@ -5,6 +5,7 @@ Menggunakan persistent connection dengan thread-safe singleton.
 
 import json
 import logging
+import os
 import threading
 import paho.mqtt.client as mqtt
 from app.core.config import settings
@@ -21,7 +22,7 @@ def _create_mqtt_client() -> mqtt.Client:
     """Buat MQTT client baru dengan paho-mqtt v2 API."""
     client = mqtt.Client(
         mqtt.CallbackAPIVersion.VERSION2,
-        client_id="pcb_publisher",
+        client_id=f"pcb_publisher_{os.getpid()}",
     )
 
     # Set credentials jika ada

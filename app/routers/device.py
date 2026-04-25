@@ -21,6 +21,8 @@ from app.mqtt.publisher import publish_control
 from app.core.config import settings
 from app.core.pagination import paginate
 from datetime import date as date_type, datetime, timezone, timedelta
+import asyncio
+from app.core.ws_manager import ws_manager
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +30,25 @@ router = APIRouter(
     prefix="/devices",
     tags=["Devices"]
 )
+
+
+def _close_device_websockets(device_id: str, reason: str = "Device dihapus"):
+    """
+    Schedule WebSocket cleanup dari sync context.
+    Sync endpoints berjalan di threadpool, jadi kita gunakan
+    run_coroutine_threadsafe untuk menjadwalkan async close di event loop.
+    """
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.run_coroutine_threadsafe(
+                ws_manager.close_device_connections(device_id, reason=reason),
+                loop,
+            )
+        else:
+            logger.debug("Event loop not running, skipping WS cleanup")
+    except RuntimeError:
+        logger.debug("No event loop available, skipping WS cleanup")
 
 
 # ==========================================
@@ -225,6 +246,9 @@ def delete_device(
     db.delete(device)
     db.commit()
 
+    # Tutup semua WebSocket connections yang sedang streaming device ini
+    _close_device_websockets(str(device_id))
+
     logger.warning(
         f"Device DIHAPUS - {mac} ('{name}') oleh Super Admin {admin_user.email}. "
         f"Dihapus: {deleted_logs} logs, {deleted_assignments} assignments."
@@ -397,6 +421,9 @@ def unclaim_device(
     device.user_id = None
     device.name = None
     db.commit()
+
+    # Tutup semua WebSocket connections — akses sudah berubah
+    _close_device_websockets(str(device_id), reason="Device di-unclaim")
 
     logger.info(f"Unclaim SUKSES - Device '{old_name}' dilepas oleh {current_user.email}")
     return {"status": "success", "message": "Device berhasil di-unclaim."}
