@@ -34,6 +34,48 @@ SENSOR_HUMID_MAX = 100.0
 SENSOR_AMMONIA_MIN = 0.0
 SENSOR_AMMONIA_MAX = 500.0
 
+# In-memory cache: MAC address → (device_id | None, device_name | None, cached_at)
+# Mengurangi query DB per message. TTL 5 menit.
+# device_id=None berarti MAC tidak dikenal (cached untuk hindari repeated lookup).
+DEVICE_CACHE_TTL = 300  # 5 menit
+_device_cache: dict[str, tuple] = {}
+
+
+def _get_cached_device(mac_address: str, db) -> Device | None:
+    """
+    Lookup device by MAC address dengan in-memory cache.
+
+    - Cache hit (known device, valid TTL): query by PK (faster).
+    - Cache hit (unknown MAC, valid TTL): return None tanpa query.
+    - Cache miss atau expired: query by mac_address, update cache.
+    """
+    now = time.time()
+    cached = _device_cache.get(mac_address)
+
+    if cached is not None:
+        device_id, device_name, cached_at = cached
+        if (now - cached_at) < DEVICE_CACHE_TTL:
+            if device_id is None:
+                # Unknown MAC — skip tanpa query
+                return None
+            # Known device — PK lookup (faster than string match on mac_address)
+            device = db.query(Device).filter(Device.id == device_id).first()
+            if device:
+                return device
+            # Device was deleted since cached — invalidate
+            del _device_cache[mac_address]
+            return None
+
+    # Cache miss atau expired — full query by mac_address
+    device = db.query(Device).filter(Device.mac_address == mac_address).first()
+
+    if device:
+        _device_cache[mac_address] = (device.id, device.name, now)
+    else:
+        _device_cache[mac_address] = (None, None, now)
+
+    return device
+
 
 def validate_sensor_data(payload: dict) -> dict | None:
     """
@@ -101,7 +143,7 @@ def on_message(client, userdata, msg):
 
         payload = json.loads(msg.payload.decode())
 
-        device = db.query(Device).filter(Device.mac_address == mac_address).first()
+        device = _get_cached_device(mac_address, db)
 
         if not device:
             logger.warning(f"Unknown MAC: {mac_address} (raw: {raw_mac})")

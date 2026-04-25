@@ -1,7 +1,7 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, case
 from typing import List
 
 from app.core.limiter import limiter
@@ -33,26 +33,29 @@ def get_admin_stats(
 
     logger.info(f"{admin_user.role} {admin_user.email} mengakses dashboard stats")
 
-    # Hitung jumlah user per role
-    total_users = db.query(func.count(User.id)).scalar()
-    total_super_admins = db.query(func.count(User.id)).filter(User.role == UserRole.SUPER_ADMIN.value).scalar()
-    total_admins = db.query(func.count(User.id)).filter(User.role == UserRole.ADMIN.value).scalar()
-    total_operators = db.query(func.count(User.id)).filter(User.role == UserRole.OPERATOR.value).scalar()
-    total_viewers = db.query(func.count(User.id)).filter(User.role == UserRole.VIEWER.value).scalar()
+    # Query 1: User counts per role (1 query instead of 5)
+    role_counts = db.query(User.role, func.count(User.id)).group_by(User.role).all()
+    role_map = dict(role_counts)
+    total_users = sum(role_map.values())
+    total_super_admins = role_map.get(UserRole.SUPER_ADMIN.value, 0)
+    total_admins = role_map.get(UserRole.ADMIN.value, 0)
+    total_operators = role_map.get(UserRole.OPERATOR.value, 0)
+    total_viewers = role_map.get(UserRole.VIEWER.value, 0)
 
-    # Hitung jumlah device
-    total_devices = db.query(func.count(Device.id)).scalar()
-    total_devices_claimed = db.query(func.count(Device.id)).filter(Device.user_id.isnot(None)).scalar()
-    total_devices_unclaimed = db.query(func.count(Device.id)).filter(Device.user_id.is_(None)).scalar()
-
-    # Hitung device online
+    # Query 2: Device counts with conditional aggregation (1 query instead of 4)
     online_cutoff = datetime.now(timezone.utc) - timedelta(seconds=settings.DEVICE_ONLINE_TIMEOUT_SECONDS)
-    total_devices_online = db.query(func.count(Device.id)).filter(
-        Device.last_heartbeat.isnot(None),
-        Device.last_heartbeat >= online_cutoff
-    ).scalar()
+    device_stats = db.query(
+        func.count(Device.id),
+        func.count(case((Device.user_id.isnot(None), 1))),
+        func.count(case((Device.user_id.is_(None), 1))),
+        func.count(case((Device.last_heartbeat >= online_cutoff, 1))),
+    ).first()
+    total_devices = device_stats[0]
+    total_devices_claimed = device_stats[1]
+    total_devices_unclaimed = device_stats[2]
+    total_devices_online = device_stats[3]
 
-    # Hitung total assignments
+    # Query 3: Assignment count (1 query, unchanged)
     total_assignments = db.query(func.count(DeviceAssignment.id)).scalar()
 
     return {
@@ -194,7 +197,7 @@ def cleanup_old_sensor_logs(
 
     cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
 
-    # Hitung dulu berapa yang akan dihapus
+    # Hitung dulu berapa yang akan dihapus (estimasi)
     count_to_delete = db.query(func.count(SensorLog.id)).filter(
         SensorLog.timestamp < cutoff_date
     ).scalar()
@@ -208,22 +211,36 @@ def cleanup_old_sensor_logs(
             "cutoff_date": cutoff_date.isoformat(),
         }
 
-    # Hapus data lama
-    deleted = db.query(SensorLog).filter(
-        SensorLog.timestamp < cutoff_date
-    ).delete()
+    # Hapus data lama dalam batch untuk menghindari long-running lock
+    BATCH_SIZE = 1000
+    total_deleted = 0
 
-    db.commit()
+    while True:
+        # Ambil batch ID yang akan dihapus
+        batch_ids = db.query(SensorLog.id).filter(
+            SensorLog.timestamp < cutoff_date
+        ).limit(BATCH_SIZE).all()
+
+        if not batch_ids:
+            break
+
+        ids = [row[0] for row in batch_ids]
+        deleted = db.query(SensorLog).filter(
+            SensorLog.id.in_(ids)
+        ).delete(synchronize_session=False)
+
+        db.commit()
+        total_deleted += deleted
 
     logger.warning(
-        f"CLEANUP oleh {admin_user.email}: {deleted} sensor logs dihapus "
+        f"CLEANUP oleh {admin_user.email}: {total_deleted} sensor logs dihapus "
         f"(lebih lama dari {retention_days} hari, cutoff: {cutoff_date.isoformat()})"
     )
 
     return {
         "status": "success",
-        "message": f"{deleted} sensor logs berhasil dihapus.",
-        "deleted_count": deleted,
+        "message": f"{total_deleted} sensor logs berhasil dihapus.",
+        "deleted_count": total_deleted,
         "retention_days": retention_days,
         "cutoff_date": cutoff_date.isoformat(),
     }

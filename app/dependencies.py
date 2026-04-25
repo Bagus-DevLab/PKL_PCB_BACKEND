@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)
 
 
-async def get_current_user(
+def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ):
@@ -75,7 +75,7 @@ async def get_current_user(
     return user
 
 
-async def get_current_admin(
+def get_current_admin(
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -91,7 +91,7 @@ async def get_current_admin(
     return current_user
 
 
-async def get_current_super_admin(
+def get_current_super_admin(
     current_user: User = Depends(get_current_user)
 ):
     """

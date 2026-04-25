@@ -1,6 +1,6 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, cast, Integer, String
 from typing import List
 from uuid import UUID
@@ -572,17 +572,18 @@ def get_device_assignments(
     """Lihat siapa saja yang di-assign ke device. Khusus Admin+."""
     device = get_owned_device(device_id, current_user, db)
 
-    assignments = db.query(DeviceAssignment).filter(DeviceAssignment.device_id == device_id).all()
+    assignments = db.query(DeviceAssignment).options(
+        joinedload(DeviceAssignment.user)
+    ).filter(DeviceAssignment.device_id == device_id).all()
 
     result = []
     for a in assignments:
-        user = db.query(User).filter(User.id == a.user_id).first()
         result.append(DeviceAssignmentResponse(
             id=a.id,
             device_id=a.device_id,
             user_id=a.user_id,
-            user_email=user.email if user else None,
-            user_name=user.full_name if user else None,
+            user_email=a.user.email if a.user else None,
+            user_name=a.user.full_name if a.user else None,
             role=a.role,
             assigned_by=a.assigned_by,
             created_at=a.created_at,
