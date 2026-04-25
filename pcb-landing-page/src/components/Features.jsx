@@ -100,10 +100,10 @@ export default function Features() {
           <Badge variant="outline" className="mb-4 px-3 py-1 text-xs font-medium rounded-full border-pcb-sage/40 text-pcb-secondary">
             Fitur Lengkap
           </Badge>
-          <h2 className="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight mb-4">
+          <h2 className="text-3xl md:text-4xl font-bold text-pcb-primary tracking-tight mb-4">
             Semua yang Kamu Butuhkan
           </h2>
-          <p className="text-slate-500 max-w-xl mx-auto">
+          <p className="text-pcb-secondary max-w-xl mx-auto">
             Monitoring real-time dan otomatisasi perangkat kandang dalam satu platform terintegrasi.
           </p>
         </motion.div>
@@ -123,8 +123,8 @@ export default function Features() {
                 {catIdx === 0 ? <Monitor className="w-4 h-4 text-pcb-primary" /> : <Zap className="w-4 h-4 text-pcb-primary" />}
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-slate-900">{category.label}</h3>
-                <p className="text-sm text-slate-400">{category.description}</p>
+                <h3 className="text-lg font-semibold text-pcb-primary">{category.label}</h3>
+                <p className="text-sm text-pcb-secondary/70">{category.description}</p>
               </div>
             </motion.div>
 
@@ -137,16 +137,24 @@ export default function Features() {
               className="grid grid-cols-1 md:grid-cols-3 gap-4"
             >
               {category.features.map((feature) => (
-                <motion.div key={feature.title} variants={cardVariants}>
-                  <Card className="h-full border-pcb-sage/30 bg-white hover:border-pcb-sage/60 hover:shadow-md transition-all duration-300 group cursor-default">
+                <motion.div
+                  key={feature.title}
+                  variants={cardVariants}
+                  whileHover={{ y: -6, transition: { duration: 0.2 } }}
+                >
+                  <Card className="h-full border-pcb-sage/30 bg-white hover:border-pcb-sage/60 hover:shadow-lg transition-all duration-300 group cursor-default">
                     <CardContent className="p-6">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${feature.bg} transition-transform duration-300 group-hover:scale-110`}>
+                      <motion.div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${feature.bg}`}
+                        whileHover={{ scale: 1.15, rotate: -5 }}
+                        transition={{ type: "spring", stiffness: 300 }}
+                      >
                         <feature.icon className={`w-5 h-5 ${feature.color}`} />
-                      </div>
-                      <h4 className="text-base font-semibold text-slate-900 mb-2">
+                      </motion.div>
+                      <h4 className="text-base font-semibold text-pcb-primary mb-2">
                         {feature.title}
                       </h4>
-                      <p className="text-sm text-slate-500 leading-relaxed">
+                      <p className="text-sm text-pcb-secondary leading-relaxed">
                         {feature.description}
                       </p>
                     </CardContent>

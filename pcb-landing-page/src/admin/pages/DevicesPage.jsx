@@ -9,8 +9,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Cpu, RefreshCw, Loader2, CheckCircle2 } from "lucide-react";
-import { deviceApi } from "@/lib/api";
+import { Plus, Cpu, RefreshCw, Loader2, CheckCircle2, ShieldAlert } from "lucide-react";
+import { deviceApi, getErrorMessage } from "@/lib/api";
 
 function TableSkeleton() {
   return (
@@ -36,12 +36,16 @@ export default function DevicesPage() {
   const [macAddress, setMacAddress] = useState("");
   const [registering, setRegistering] = useState(false);
 
+  // Cek role — hanya super_admin yang bisa register device
+  const currentUser = JSON.parse(localStorage.getItem("user_info") || "{}");
+  const isSuperAdmin = currentUser.role === "super_admin";
+
   const fetchDevices = async () => {
     try {
       const response = await deviceApi.getUnclaimed();
       setDevices(response.data);
     } catch (err) {
-      setError(err.response?.data?.detail || "Gagal memuat daftar device");
+      setError(getErrorMessage(err, "Gagal memuat daftar device"));
     } finally {
       setLoading(false);
     }
@@ -60,7 +64,7 @@ export default function DevicesPage() {
       setMacAddress("");
       await fetchDevices();
     } catch (err) {
-      setError(err.response?.data?.detail || "Gagal mendaftarkan device");
+      setError(getErrorMessage(err, "Gagal mendaftarkan device"));
     } finally {
       setRegistering(false);
     }
@@ -77,11 +81,14 @@ export default function DevicesPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Kelola Device</h1>
-        <p className="text-sm text-slate-400 mt-1">Daftarkan device baru dan lihat device yang belum diklaim</p>
+        <h1 className="text-2xl font-bold text-pcb-primary">Kelola Device</h1>
+        <p className="text-sm text-pcb-secondary mt-1">
+          {isSuperAdmin ? "Daftarkan device baru dan lihat device yang belum diklaim" : "Lihat device yang belum diklaim"}
+        </p>
       </div>
 
-      {/* Register Form */}
+      {/* Register Form — hanya untuk Super Admin */}
+      {isSuperAdmin ? (
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -144,6 +151,14 @@ export default function DevicesPage() {
           </CardContent>
         </Card>
       </motion.div>
+      ) : (
+        <div className="mb-6 p-4 bg-pcb-mint/30 border border-pcb-sage/30 rounded-lg flex items-center gap-3">
+          <ShieldAlert className="w-5 h-5 text-pcb-secondary shrink-0" />
+          <p className="text-sm text-pcb-secondary">
+            Hanya <strong className="text-pcb-primary">Super Admin</strong> yang bisa mendaftarkan device baru.
+          </p>
+        </div>
+      )}
 
       {/* Unclaimed Devices Table */}
       <motion.div

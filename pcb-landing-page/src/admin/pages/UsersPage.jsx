@@ -12,7 +12,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { ShieldCheck, User, RefreshCw, CloudDownload, Search, Loader2, Crown, Wrench, Eye } from "lucide-react";
-import { adminApi, userApi } from "@/lib/api";
+import { adminApi, userApi, getErrorMessage } from "@/lib/api";
 
 function TableSkeleton() {
   return (
@@ -53,7 +53,7 @@ export default function UsersPage() {
       const response = await adminApi.getAllUsers();
       setUsers(response.data);
     } catch (err) {
-      setError(err.response?.data?.detail || "Gagal memuat daftar user");
+      setError(getErrorMessage(err, "Gagal memuat daftar user"));
     } finally {
       setLoading(false);
     }
@@ -81,7 +81,7 @@ export default function UsersPage() {
       setSyncResult(response.data);
       await fetchUsers();
     } catch (err) {
-      setError(err.response?.data?.detail || "Gagal sync user dari Firebase");
+      setError(getErrorMessage(err, "Gagal sync user dari Firebase"));
     } finally {
       setSyncing(false);
     }
@@ -101,7 +101,7 @@ export default function UsersPage() {
       await fetchUsers();
       setDialogOpen(false);
     } catch (err) {
-      setError(err.response?.data?.detail || "Gagal mengubah role user");
+      setError(getErrorMessage(err, "Gagal mengubah role user"));
     } finally {
       setUpdating(false);
     }

@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import AnimatedCounter from "@/components/shared/AnimatedCounter";
 import { Users, Cpu, Wifi, ShieldCheck, Package, TrendingUp, Crown, Wrench, Eye, Link2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { adminApi } from "@/lib/api";
+import { adminApi, getErrorMessage } from "@/lib/api";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -47,7 +47,7 @@ export default function DashboardPage() {
         const response = await adminApi.getStats();
         setStats(response.data);
       } catch (err) {
-        setError(err.response?.data?.detail || "Gagal memuat data dashboard");
+        setError(getErrorMessage(err, "Gagal memuat data dashboard"));
       } finally {
         setLoading(false);
       }
@@ -146,11 +146,11 @@ export default function DashboardPage() {
           <Card className="border-pcb-sage/30">
             <CardContent className="p-6">
               <div className="flex items-center gap-2 mb-6">
-                <TrendingUp className="w-4 h-4 text-slate-400" />
-                <h3 className="text-sm font-semibold text-slate-900">Ringkasan Sistem</h3>
+                <TrendingUp className="w-4 h-4 text-pcb-secondary" />
+                <h3 className="text-sm font-semibold text-pcb-primary">Ringkasan Sistem</h3>
               </div>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="h-64 min-h-[256px]">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <BarChart data={chartData} barSize={32}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                     <XAxis

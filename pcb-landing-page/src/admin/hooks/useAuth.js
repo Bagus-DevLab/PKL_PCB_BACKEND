@@ -4,7 +4,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
-import { authApi, userApi } from "@/lib/api";
+import { authApi, userApi, getErrorMessage } from "@/lib/api";
 
 export function useAuth() {
   const [user, setUser] = useState(null);
@@ -82,10 +82,7 @@ export function useAuth() {
 
       return fullUser;
     } catch (err) {
-      const message =
-        err.message ||
-        err.response?.data?.detail ||
-        "Login gagal. Periksa email dan password.";
+      const message = getErrorMessage(err, "Login gagal. Periksa email dan password.");
       setError(message);
       throw err;
     } finally {

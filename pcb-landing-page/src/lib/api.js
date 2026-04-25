@@ -78,4 +78,24 @@ export const deviceApi = {
     api.get(`/devices/${deviceId}/assignments`),
 };
 
+// ==========================================
+// ERROR HELPER
+// ==========================================
+
+/**
+ * Extract pesan error dari response API.
+ * Handle 2 format FastAPI error:
+ *   - String: {"detail": "Perangkat sudah terdaftar!"}
+ *   - Array (validation): {"detail": [{"msg": "Format MAC tidak valid", ...}]}
+ */
+export function getErrorMessage(err, fallback = "Terjadi kesalahan") {
+  const detail = err.response?.data?.detail;
+  if (!detail) return err.message || fallback;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((d) => d.msg).join(", ");
+  }
+  return fallback;
+}
+
 export default api;
