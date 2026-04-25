@@ -75,7 +75,7 @@ def claim_device(
 
     logger.info(f"{current_user.role} {current_user.email} mencoba klaim device MAC: {device_in.mac_address}")
 
-    device = db.query(Device).filter(Device.mac_address == device_in.mac_address).first()
+    device = db.query(Device).filter(Device.mac_address == device_in.mac_address).with_for_update().first()
     if not device:
         raise HTTPException(status_code=404, detail="Device tidak dikenali! Pastikan Anda memindai QR Code produk asli.")
 
