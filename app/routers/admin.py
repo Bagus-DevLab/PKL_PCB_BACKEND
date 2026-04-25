@@ -143,14 +143,14 @@ def sync_firebase_users(
 
                 except Exception as e:
                     db.rollback()
-                    failed.append({"email": email, "error": str(e)})
+                    failed.append({"email": email, "error": "Gagal menyimpan ke database"})
                     logger.error(f"Sync GAGAL untuk {email}: {str(e)}")
 
             page = page.get_next_page()
 
     except Exception as e:
         logger.error(f"Sync Firebase users GAGAL: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Gagal mengambil data dari Firebase: {str(e)}")
+        raise HTTPException(status_code=500, detail="Gagal mengambil data dari Firebase.")
 
     result = {
         "synced_count": len(synced),

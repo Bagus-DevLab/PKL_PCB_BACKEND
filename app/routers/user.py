@@ -20,13 +20,16 @@ router = APIRouter(
 
 
 @router.get("/me", response_model=UserResponse)
-def read_user_me(current_user: User = Depends(get_current_user)):
+@limiter.limit("60/minute")
+def read_user_me(request: Request, current_user: User = Depends(get_current_user)):
     """Mengambil data profil user yang sedang login"""
     return current_user
 
 
 @router.patch("/me", response_model=UserResponse)
+@limiter.limit("10/minute")
 def update_user_me(
+    request: Request,
     data: UpdateUserName,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -40,7 +43,9 @@ def update_user_me(
 
 
 @router.delete("/me")
+@limiter.limit("5/minute")
 def delete_user_me(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
