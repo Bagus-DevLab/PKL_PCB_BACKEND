@@ -3,6 +3,7 @@ import os
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import firebase_admin
@@ -74,9 +75,25 @@ async def firebase_login(request: Request, data: FirebaseLoginRequest, db: Sessi
                 role=initial_role
             )
             db.add(new_user)
-            db.commit()
-            db.refresh(new_user)
-            user_db = new_user
+            try:
+                db.commit()
+                db.refresh(new_user)
+                user_db = new_user
+            except IntegrityError:
+                db.rollback()
+                logger.warning(f"Race condition pada login pertama {email} — user sudah dibuat oleh request lain")
+                # Request lain sudah berhasil INSERT — ambil user yang sudah ada
+                user_db = db.query(User).filter(User.email == email).first()
+                if not user_db:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Terjadi kesalahan internal server."
+                    )
+                if not user_db.is_active:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Akun telah dinonaktifkan. Hubungi admin."
+                    )
         
         # 4. Buat Access Token (JWT Lokal)
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -100,6 +117,8 @@ async def firebase_login(request: Request, data: FirebaseLoginRequest, db: Sessi
         raise HTTPException(status_code=401, detail="Token Firebase tidak valid.")
     except auth.ExpiredIdTokenError:
         raise HTTPException(status_code=401, detail="Token Firebase sudah kedaluwarsa.")
+    except HTTPException:
+        raise  # Propagate intentional HTTP errors (403 deactivated, etc.)
     except Exception as e:
         logger.error(f"Login GAGAL: {str(e)}")
         raise HTTPException(status_code=500, detail="Terjadi kesalahan internal server.")
