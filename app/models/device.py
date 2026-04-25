@@ -16,7 +16,7 @@ class Device(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
 
     owner = relationship("User", back_populates="devices")
-    logs = relationship("SensorLog", back_populates="device")
+    logs = relationship("SensorLog", back_populates="device", cascade="all, delete-orphan")
     assignments = relationship("DeviceAssignment", back_populates="device", cascade="all, delete-orphan")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -25,7 +25,7 @@ class SensorLog(Base):
     __tablename__ = "sensor_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    device_id = Column(UUID(as_uuid=True), ForeignKey("devices.id"), index=True)
+    device_id = Column(UUID(as_uuid=True), ForeignKey("devices.id", ondelete="CASCADE"), index=True)
 
     temperature = Column(Float)
     humidity = Column(Float)
