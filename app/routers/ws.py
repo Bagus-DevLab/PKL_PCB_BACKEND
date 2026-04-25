@@ -44,7 +44,10 @@ def _authenticate_ws(token: str, db: Session) -> User | None:
         user_uuid = UUID(user_id)
     except ValueError:
         return None
-    return db.query(User).filter(User.id == user_uuid).first()
+    user = db.query(User).filter(User.id == user_uuid).first()
+    if user and not user.is_active:
+        return None
+    return user
 
 
 def _check_access(device_id: UUID, user: User, db: Session) -> Device | None:

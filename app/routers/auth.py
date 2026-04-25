@@ -1,7 +1,7 @@
 import logging
 import os
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -49,7 +49,14 @@ async def firebase_login(request: Request, data: FirebaseLoginRequest, db: Sessi
 
         # 2. Cek User di DB PostgreSQL kita
         user_db = db.query(User).filter(User.email == email).first()
-        
+
+        # 2.5 Cek apakah akun masih aktif (jika user sudah ada)
+        if user_db and not user_db.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Akun telah dinonaktifkan. Hubungi admin."
+            )
+
         # 3. Kalau belum ada (User Baru Register di Flutter), kita otomatis simpan ke DB
         if not user_db:
             # Tentukan role: jika email cocok dengan INITIAL_ADMIN_EMAIL, jadikan super_admin

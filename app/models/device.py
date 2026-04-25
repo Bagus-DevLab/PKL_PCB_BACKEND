@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Boolean, Column, String, Float, ForeignKey, DateTime, Integer, UniqueConstraint
+from sqlalchemy import Boolean, Column, String, Float, ForeignKey, DateTime, Integer, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
@@ -36,6 +36,10 @@ class SensorLog(Base):
 
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     device = relationship("Device", back_populates="logs")
+
+    __table_args__ = (
+        Index("ix_sensor_logs_device_timestamp", "device_id", timestamp.desc()),
+    )
 
 
 class DeviceAssignment(Base):
