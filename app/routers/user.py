@@ -5,7 +5,8 @@ from uuid import UUID
 
 from app.core.limiter import limiter
 from app.database import get_db
-from app.models.user import User, UserRole
+from pydantic import BaseModel
+from app.models.user import User, UserRole, FcmToken
 from app.models.device import Device, DeviceAssignment
 from app.schemas.user import UserResponse, UpdateUserRole, UpdateUserName
 from app.dependencies import get_current_user, get_current_admin
@@ -130,3 +131,71 @@ def update_user_role(
         f"oleh {admin_user.role} {admin_user.email}"
     )
     return target_user
+
+
+# ==========================================
+# FCM TOKEN (Push Notification)
+# ==========================================
+
+class FcmTokenRequest(BaseModel):
+    token: str
+    device_info: str = None
+
+
+@router.post("/me/fcm-token")
+def register_fcm_token(
+    data: FcmTokenRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Register FCM token untuk push notification.
+    Dipanggil oleh Flutter app saat login atau token refresh.
+    Satu user bisa punya banyak token (banyak HP).
+    """
+    # Cek apakah token sudah ada
+    existing = db.query(FcmToken).filter(FcmToken.token == data.token).first()
+
+    if existing:
+        # Token sudah ada — update user_id jika berbeda (token pindah user)
+        if existing.user_id != current_user.id:
+            existing.user_id = current_user.id
+            existing.device_info = data.device_info
+            db.commit()
+            logger.info(f"FCM token di-reassign ke {current_user.email}")
+        return {"status": "success", "message": "FCM token sudah terdaftar"}
+
+    # Buat token baru
+    new_token = FcmToken(
+        user_id=current_user.id,
+        token=data.token,
+        device_info=data.device_info,
+    )
+    db.add(new_token)
+    db.commit()
+
+    logger.info(f"FCM token terdaftar untuk {current_user.email} ({data.device_info or 'unknown device'})")
+    return {"status": "success", "message": "FCM token berhasil didaftarkan"}
+
+
+@router.delete("/me/fcm-token")
+def unregister_fcm_token(
+    data: FcmTokenRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Hapus FCM token (saat logout dari Flutter app).
+    """
+    deleted = db.query(FcmToken).filter(
+        FcmToken.token == data.token,
+        FcmToken.user_id == current_user.id
+    ).delete()
+
+    db.commit()
+
+    if deleted:
+        logger.info(f"FCM token dihapus untuk {current_user.email}")
+        return {"status": "success", "message": "FCM token berhasil dihapus"}
+    else:
+        return {"status": "success", "message": "FCM token tidak ditemukan"}

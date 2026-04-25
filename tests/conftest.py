@@ -33,7 +33,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.main import app
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole, FcmToken
 from app.models.device import Device, SensorLog, DeviceAssignment
 from app.core.security import create_access_token
 import app.database as database_module
@@ -62,6 +62,7 @@ def db_session() -> Generator:
     try:
         yield db
     finally:
+        db.query(FcmToken).delete()
         db.query(DeviceAssignment).delete()
         db.query(SensorLog).delete()
         db.query(Device).delete()

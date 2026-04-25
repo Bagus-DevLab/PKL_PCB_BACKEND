@@ -1,6 +1,6 @@
 import enum
 import uuid
-from sqlalchemy import Column, String, Boolean, DateTime
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from app.database import Base
@@ -45,3 +45,21 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     devices = relationship("Device", back_populates="owner")
+    fcm_tokens = relationship("FcmToken", back_populates="user", cascade="all, delete-orphan")
+
+
+class FcmToken(Base):
+    """
+    Tabel untuk menyimpan FCM (Firebase Cloud Messaging) token per user.
+    Satu user bisa punya banyak token (banyak device/HP).
+    Token digunakan untuk mengirim push notification saat alert terpicu.
+    """
+    __tablename__ = "fcm_tokens"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token = Column(String, nullable=False, unique=True)
+    device_info = Column(String, nullable=True)  # Opsional: info device (misal "Samsung Galaxy A52")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", back_populates="fcm_tokens")

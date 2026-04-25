@@ -148,6 +148,21 @@ def on_message(client, userdata, msg):
 
         if is_alert:
             logger.warning(f"ALERT untuk {device.name}: {alert_msg}")
+
+            # Kirim push notification ke user terkait
+            try:
+                from app.core.notifications import send_alert_notification
+                send_alert_notification(
+                    device_name=device.name,
+                    device_id=str(device.id),
+                    alert_message=alert_msg,
+                    temperature=temp,
+                    humidity=humidity,
+                    ammonia=ammonia,
+                    db=db,
+                )
+            except Exception as notif_err:
+                logger.error(f"Push notification gagal: {notif_err}")
         else:
             logger.info(f"Data masuk & Heartbeat updated: {device.name}")
 

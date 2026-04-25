@@ -21,7 +21,7 @@ if config.config_file_name is not None:
 
 # Import models agar Alembic bisa detect perubahan schema
 from app.database import Base
-from app.models.user import User  # noqa: F401
+from app.models.user import User, FcmToken  # noqa: F401
 from app.models.device import Device, SensorLog, DeviceAssignment  # noqa: F401
 
 target_metadata = Base.metadata

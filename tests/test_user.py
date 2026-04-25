@@ -218,6 +218,59 @@ class TestAdminEndpointAccess:
         assert response.status_code == 200
 
 
+class TestFcmToken:
+    """Test suite untuk FCM token register/unregister"""
+
+    def test_register_fcm_token(self, client, auth_headers):
+        """User bisa register FCM token"""
+        response = client.post(
+            "/api/users/me/fcm-token",
+            json={"token": "fcm_test_token_123", "device_info": "Test Phone"},
+            headers=auth_headers
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+
+    def test_register_duplicate_token(self, client, auth_headers):
+        """Register token yang sama tidak error"""
+        client.post(
+            "/api/users/me/fcm-token",
+            json={"token": "fcm_duplicate_token"},
+            headers=auth_headers
+        )
+        response = client.post(
+            "/api/users/me/fcm-token",
+            json={"token": "fcm_duplicate_token"},
+            headers=auth_headers
+        )
+        assert response.status_code == 200
+
+    def test_unregister_fcm_token(self, client, auth_headers):
+        """User bisa unregister FCM token"""
+        # Register dulu
+        client.post(
+            "/api/users/me/fcm-token",
+            json={"token": "fcm_to_delete"},
+            headers=auth_headers
+        )
+        # Unregister
+        response = client.request(
+            "DELETE",
+            "/api/users/me/fcm-token",
+            json={"token": "fcm_to_delete"},
+            headers=auth_headers
+        )
+        assert response.status_code == 200
+
+    def test_register_without_auth(self, client):
+        """Register tanpa auth ditolak"""
+        response = client.post(
+            "/api/users/me/fcm-token",
+            json={"token": "fcm_no_auth"}
+        )
+        assert response.status_code == 401
+
+
 class TestCleanupLogs:
     """Test suite untuk POST /api/admin/cleanup-logs"""
 
