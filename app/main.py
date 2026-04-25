@@ -11,7 +11,7 @@ from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.database import Base, engine, get_db, SessionLocal
-from app.routers import auth_router, user_router, device_router, admin_router
+from app.routers import auth_router, user_router, device_router, admin_router, ws_router
 from app.core.logging_config import setup_logging
 from app.core.config import settings
 from app.core.request_context import request_id_var, generate_request_id
@@ -147,6 +147,7 @@ app.include_router(auth_router, prefix=API_PREFIX)
 app.include_router(user_router, prefix=API_PREFIX)
 app.include_router(device_router, prefix=API_PREFIX)
 app.include_router(admin_router, prefix=API_PREFIX)
+app.include_router(ws_router, prefix=API_PREFIX)
 
 @app.get(f"{API_PREFIX}/health", tags=["Health"])
 @limiter.limit("60/minute")
