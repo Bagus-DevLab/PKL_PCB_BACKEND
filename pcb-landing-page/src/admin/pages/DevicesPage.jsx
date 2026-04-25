@@ -58,11 +58,11 @@ export default function DevicesPage() {
   const fetchDevices = async () => {
     try {
       const [allRes, unclaimedRes] = await Promise.all([
-        deviceApi.getAll(),
-        deviceApi.getUnclaimed(),
+        deviceApi.getAll(1, 100),
+        deviceApi.getUnclaimed(1, 100),
       ]);
-      setAllDevices(allRes.data);
-      setUnclaimedDevices(unclaimedRes.data);
+      setAllDevices(allRes.data.data || allRes.data);
+      setUnclaimedDevices(unclaimedRes.data.data || unclaimedRes.data);
     } catch (err) {
       setError(getErrorMessage(err, "Gagal memuat daftar device"));
     } finally {

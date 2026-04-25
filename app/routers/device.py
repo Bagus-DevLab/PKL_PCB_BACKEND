@@ -19,6 +19,7 @@ from app.dependencies import (
 )
 from app.mqtt.publisher import publish_control
 from app.core.config import settings
+from app.core.pagination import paginate
 from datetime import date as date_type, datetime, timezone, timedelta
 
 logger = logging.getLogger(__name__)
@@ -93,74 +94,78 @@ def claim_device(
 # ==========================================
 # 2. LIHAT DEVICE (BERDASARKAN ROLE)
 # ==========================================
-@router.get("/", response_model=List[DeviceResponse])
+@router.get("/")
 @limiter.limit("30/minute")
 def read_my_devices(
     request: Request,
+    page: int = Query(default=1, ge=1, description="Nomor halaman"),
+    limit: int = Query(default=20, ge=1, le=100, description="Item per halaman"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    List device berdasarkan role:
+    List device berdasarkan role (dengan pagination):
     - super_admin: semua device
     - admin: device miliknya
     - operator/viewer: device yang di-assign
     - user: empty list
     """
     if current_user.role == UserRole.SUPER_ADMIN.value:
-        devices = db.query(Device).all()
+        query = db.query(Device)
     elif current_user.role == UserRole.ADMIN.value:
-        devices = db.query(Device).filter(Device.user_id == current_user.id).all()
+        query = db.query(Device).filter(Device.user_id == current_user.id)
     elif current_user.role in [UserRole.OPERATOR.value, UserRole.VIEWER.value]:
-        # Query device yang di-assign ke user ini
         assigned_device_ids = db.query(DeviceAssignment.device_id).filter(
             DeviceAssignment.user_id == current_user.id
         ).scalar_subquery()
-        devices = db.query(Device).filter(Device.id.in_(assigned_device_ids)).all()
+        query = db.query(Device).filter(Device.id.in_(assigned_device_ids))
     else:
-        devices = []
+        return {"data": [], "total": 0, "page": page, "limit": limit, "total_pages": 0}
 
-    logger.debug(f"User {current_user.email} (role: {current_user.role}) mengambil {len(devices)} device")
-    return devices
+    return paginate(query, page, limit)
 
 
 # ==========================================
 # 2.5 LIHAT DEVICE BELUM DIKLAIM (ADMIN+)
 # ==========================================
-@router.get("/unclaimed", response_model=List[DeviceResponse])
+@router.get("/unclaimed")
 @limiter.limit("30/minute")
 def get_unclaimed_devices(
     request: Request,
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     admin_user: User = Depends(get_current_admin)
 ):
     """Daftar device yang belum diklaim. Khusus Admin+."""
-    devices = db.query(Device).filter(Device.user_id == None).all()
-    return devices
+    query = db.query(Device).filter(Device.user_id == None)
+    return paginate(query, page, limit)
 
 
 # ==========================================
 # 2.6 LIHAT SEMUA DEVICE (ADMIN+)
 # ==========================================
-@router.get("/all", response_model=List[DeviceResponse])
+@router.get("/all")
 @limiter.limit("30/minute")
 def get_all_devices(
     request: Request,
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     admin_user: User = Depends(get_current_admin)
 ):
     """
-    Daftar SEMUA device (claimed + unclaimed). Khusus Admin+.
+    Daftar SEMUA device (claimed + unclaimed) dengan pagination. Khusus Admin+.
     - Super Admin: lihat semua device
     - Admin: lihat device miliknya + unclaimed
     """
     if admin_user.role == UserRole.SUPER_ADMIN.value:
-        devices = db.query(Device).order_by(Device.created_at.desc()).all()
+        query = db.query(Device).order_by(Device.created_at.desc())
     else:
-        devices = db.query(Device).filter(
+        query = db.query(Device).filter(
             (Device.user_id == admin_user.id) | (Device.user_id == None)
-        ).order_by(Device.created_at.desc()).all()
-    return devices
+        ).order_by(Device.created_at.desc())
+    return paginate(query, page, limit)
 
 
 # ==========================================
@@ -233,27 +238,24 @@ def delete_device(
 # ==========================================
 # 3. LIHAT DATA SENSOR (DENGAN ACCESS CHECK)
 # ==========================================
-@router.get("/{device_id}/logs", response_model=List[LogResponse])
+@router.get("/{device_id}/logs")
 @limiter.limit("60/minute")
 def read_device_logs(
     request: Request,
     device_id: UUID,
-    limit: int = 20,
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Lihat history data sensor. Semua role yang punya akses ke device."""
-    limit = min(limit, 100)
+    """Lihat history data sensor dengan pagination. Semua role yang punya akses ke device."""
     device = get_device_with_access(device_id, current_user, db)
 
-    logs = db.query(SensorLog)\
+    query = db.query(SensorLog)\
         .filter(SensorLog.device_id == device_id)\
-        .order_by(SensorLog.timestamp.desc())\
-        .limit(limit)\
-        .all()
+        .order_by(SensorLog.timestamp.desc())
 
-    logger.debug(f"User {current_user.email} mengambil {len(logs)} logs dari device {device.name}")
-    return logs
+    return paginate(query, page, limit)
 
 
 # ==========================================
@@ -285,24 +287,24 @@ def control_device(
 # ==========================================
 # 4. LIHAT ALERTS (DENGAN ACCESS CHECK)
 # ==========================================
-@router.get("/{device_id}/alerts", response_model=List[LogResponse])
+@router.get("/{device_id}/alerts")
 @limiter.limit("60/minute")
 def get_device_alerts(
     request: Request,
     device_id: UUID,
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Lihat riwayat alert. Semua role yang punya akses ke device."""
+    """Lihat riwayat alert dengan pagination. Semua role yang punya akses ke device."""
     device = get_device_with_access(device_id, current_user, db)
 
-    alerts = db.query(SensorLog)\
+    query = db.query(SensorLog)\
         .filter(SensorLog.device_id == device_id, SensorLog.is_alert == True)\
-        .order_by(SensorLog.timestamp.desc())\
-        .limit(10)\
-        .all()
+        .order_by(SensorLog.timestamp.desc())
 
-    return alerts
+    return paginate(query, page, limit)
 
 
 # ==========================================

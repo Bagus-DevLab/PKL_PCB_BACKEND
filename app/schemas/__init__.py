@@ -10,6 +10,9 @@ from .user import UserResponse, UpdateUserRole, UpdateUserName
 # Sensor schemas
 from .sensor import LogResponse
 
+# Pagination
+from .pagination import PaginatedResponse
+
 __all__ = [
     # Device
     "DeviceClaim",
@@ -24,4 +27,6 @@ __all__ = [
     "UpdateUserName",
     # Sensor
     "LogResponse",
+    # Pagination
+    "PaginatedResponse",
 ]

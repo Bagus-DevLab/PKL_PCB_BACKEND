@@ -70,29 +70,31 @@ class TestReadMyDevices:
         """Admin melihat device miliknya"""
         response = client.get("/api/devices/", headers=admin_headers)
         assert response.status_code == 200
-        data = response.json()
-        assert len(data) >= 1
-        assert test_device_claimed.mac_address in [d["mac_address"] for d in data]
+        result = response.json()
+        assert result["total"] >= 1
+        assert test_device_claimed.mac_address in [d["mac_address"] for d in result["data"]]
 
     def test_user_sees_empty_list(self, client, auth_headers):
         """User default melihat list kosong"""
         response = client.get("/api/devices/", headers=auth_headers)
         assert response.status_code == 200
-        assert response.json() == []
+        result = response.json()
+        assert result["data"] == []
+        assert result["total"] == 0
 
     def test_operator_sees_assigned_devices(self, client, operator_headers, test_device_claimed, test_operator_assignment):
         """Operator melihat device yang di-assign"""
         response = client.get("/api/devices/", headers=operator_headers)
         assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 1
-        assert data[0]["id"] == str(test_device_claimed.id)
+        result = response.json()
+        assert len(result["data"]) == 1
+        assert result["data"][0]["id"] == str(test_device_claimed.id)
 
     def test_super_admin_sees_all_devices(self, client, super_admin_headers, test_device_claimed, test_device_unclaimed):
         """Super Admin melihat semua device"""
         response = client.get("/api/devices/", headers=super_admin_headers)
         assert response.status_code == 200
-        assert len(response.json()) >= 2
+        assert response.json()["total"] >= 2
 
     def test_without_auth(self, client):
         response = client.get("/api/devices/")
@@ -106,13 +108,13 @@ class TestReadDeviceLogs:
         """Admin bisa lihat logs device miliknya"""
         response = client.get(f"/api/devices/{test_device_claimed.id}/logs", headers=admin_headers)
         assert response.status_code == 200
-        assert len(response.json()) > 0
+        assert response.json()["total"] > 0
 
     def test_operator_gets_logs(self, client, operator_headers, test_device_claimed, test_sensor_logs, test_operator_assignment):
         """Operator bisa lihat logs device yang di-assign"""
         response = client.get(f"/api/devices/{test_device_claimed.id}/logs", headers=operator_headers)
         assert response.status_code == 200
-        assert len(response.json()) > 0
+        assert response.json()["total"] > 0
 
     def test_viewer_gets_logs(self, client, viewer_headers, test_device_claimed, test_sensor_logs, test_viewer_assignment):
         """Viewer bisa lihat logs device yang di-assign"""
@@ -132,7 +134,7 @@ class TestReadDeviceLogs:
     def test_logs_with_limit(self, client, admin_headers, test_device_claimed, test_sensor_logs):
         response = client.get(f"/api/devices/{test_device_claimed.id}/logs?limit=3", headers=admin_headers)
         assert response.status_code == 200
-        assert len(response.json()) <= 3
+        assert len(response.json()["data"]) <= 3
 
 
 class TestControlDevice:
@@ -189,7 +191,7 @@ class TestGetDeviceAlerts:
     def test_admin_gets_alerts(self, client, admin_headers, test_device_claimed, test_sensor_logs):
         response = client.get(f"/api/devices/{test_device_claimed.id}/alerts", headers=admin_headers)
         assert response.status_code == 200
-        for log in response.json():
+        for log in response.json()["data"]:
             assert log["is_alert"] == True
 
     def test_user_cannot_get_alerts(self, client, auth_headers, test_device_claimed):
@@ -300,13 +302,13 @@ class TestGetAllDevices:
         """Super Admin melihat semua device"""
         response = client.get("/api/devices/all", headers=super_admin_headers)
         assert response.status_code == 200
-        assert len(response.json()) >= 2
+        assert response.json()["total"] >= 2
 
     def test_admin_sees_own_and_unclaimed(self, client, admin_headers, test_device_claimed, test_device_unclaimed):
         """Admin melihat device miliknya + unclaimed"""
         response = client.get("/api/devices/all", headers=admin_headers)
         assert response.status_code == 200
-        assert len(response.json()) >= 2
+        assert response.json()["total"] >= 2
 
     def test_user_cannot_see_all(self, client, auth_headers):
         """User biasa tidak bisa akses /all"""
@@ -424,5 +426,5 @@ class TestDeleteDevice:
         assert response.status_code == 200
         # Verify device is gone
         get_response = client.get("/api/devices/all", headers=super_admin_headers)
-        device_ids = [d["id"] for d in get_response.json()]
+        device_ids = [d["id"] for d in get_response.json()["data"]]
         assert str(test_device_claimed.id) not in device_ids

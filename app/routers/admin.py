@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List
@@ -11,6 +11,7 @@ from app.models.device import Device, DeviceAssignment
 from app.schemas.user import UserResponse
 from app.dependencies import get_current_admin, get_current_super_admin
 from app.core.config import settings
+from app.core.pagination import paginate
 
 logger = logging.getLogger(__name__)
 
@@ -68,17 +69,19 @@ def get_admin_stats(
     }
 
 
-@router.get("/users", response_model=List[UserResponse])
+@router.get("/users")
 @limiter.limit("30/minute")
 def get_all_users(
     request: Request,
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     admin_user: User = Depends(get_current_admin)
 ):
-    """Daftar semua user. Khusus Admin+."""
-    logger.info(f"{admin_user.role} {admin_user.email} mengambil daftar semua user")
-    users = db.query(User).order_by(User.created_at.desc()).all()
-    return users
+    """Daftar semua user dengan pagination. Khusus Admin+."""
+    logger.info(f"{admin_user.role} {admin_user.email} mengambil daftar user (page={page})")
+    query = db.query(User).order_by(User.created_at.desc())
+    return paginate(query, page, limit)
 
 
 @router.post("/sync-firebase-users")

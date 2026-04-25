@@ -59,7 +59,7 @@ export const userApi = {
 // ==========================================
 export const adminApi = {
   getStats: () => api.get("/admin/stats"),
-  getAllUsers: () => api.get("/admin/users"),
+  getAllUsers: (page = 1, limit = 50) => api.get(`/admin/users?page=${page}&limit=${limit}`),
   syncFirebaseUsers: () => api.post("/admin/sync-firebase-users"),
 };
 
@@ -69,8 +69,8 @@ export const adminApi = {
 export const deviceApi = {
   register: (macAddress) =>
     api.post("/devices/register", { mac_address: macAddress }),
-  getAll: () => api.get("/devices/all"),
-  getUnclaimed: () => api.get("/devices/unclaimed"),
+  getAll: (page = 1, limit = 50) => api.get(`/devices/all?page=${page}&limit=${limit}`),
+  getUnclaimed: (page = 1, limit = 50) => api.get(`/devices/unclaimed?page=${page}&limit=${limit}`),
   update: (deviceId, name) =>
     api.patch(`/devices/${deviceId}`, { name }),
   remove: (deviceId) =>

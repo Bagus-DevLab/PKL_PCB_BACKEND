@@ -50,8 +50,8 @@ export default function UsersPage() {
 
   const fetchUsers = async () => {
     try {
-      const response = await adminApi.getAllUsers();
-      setUsers(response.data);
+      const response = await adminApi.getAllUsers(1, 100);
+      setUsers(response.data.data || response.data);
     } catch (err) {
       setError(getErrorMessage(err, "Gagal memuat daftar user"));
     } finally {
