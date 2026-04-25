@@ -291,3 +291,138 @@ class TestDeviceAssignment:
             headers=super_admin_headers
         )
         assert response.status_code == 200
+
+
+class TestGetAllDevices:
+    """Test suite untuk GET /api/devices/all"""
+
+    def test_super_admin_sees_all(self, client, super_admin_headers, test_device_claimed, test_device_unclaimed):
+        """Super Admin melihat semua device"""
+        response = client.get("/api/devices/all", headers=super_admin_headers)
+        assert response.status_code == 200
+        assert len(response.json()) >= 2
+
+    def test_admin_sees_own_and_unclaimed(self, client, admin_headers, test_device_claimed, test_device_unclaimed):
+        """Admin melihat device miliknya + unclaimed"""
+        response = client.get("/api/devices/all", headers=admin_headers)
+        assert response.status_code == 200
+        assert len(response.json()) >= 2
+
+    def test_user_cannot_see_all(self, client, auth_headers):
+        """User biasa tidak bisa akses /all"""
+        response = client.get("/api/devices/all", headers=auth_headers)
+        assert response.status_code == 403
+
+    def test_without_auth(self, client):
+        response = client.get("/api/devices/all")
+        assert response.status_code == 401
+
+
+class TestUpdateDevice:
+    """Test suite untuk PATCH /api/devices/{id}"""
+
+    def test_admin_can_rename_own_device(self, client, admin_headers, test_device_claimed):
+        """Admin bisa rename device miliknya"""
+        response = client.patch(
+            f"/api/devices/{test_device_claimed.id}",
+            json={"name": "Kandang Baru"},
+            headers=admin_headers
+        )
+        assert response.status_code == 200
+        assert response.json()["name"] == "Kandang Baru"
+
+    def test_super_admin_can_rename_any_device(self, client, super_admin_headers, test_device_claimed):
+        """Super Admin bisa rename device manapun"""
+        response = client.patch(
+            f"/api/devices/{test_device_claimed.id}",
+            json={"name": "Renamed by SA"},
+            headers=super_admin_headers
+        )
+        assert response.status_code == 200
+        assert response.json()["name"] == "Renamed by SA"
+
+    def test_admin_cannot_rename_other_device(self, client, admin_headers, test_device_other_user):
+        """Admin tidak bisa rename device bukan miliknya"""
+        response = client.patch(
+            f"/api/devices/{test_device_other_user.id}",
+            json={"name": "Coba Rename"},
+            headers=admin_headers
+        )
+        assert response.status_code == 404
+
+    def test_user_cannot_rename(self, client, auth_headers, test_device_claimed):
+        """User biasa tidak bisa rename"""
+        response = client.patch(
+            f"/api/devices/{test_device_claimed.id}",
+            json={"name": "Coba Rename"},
+            headers=auth_headers
+        )
+        assert response.status_code == 403
+
+    def test_rename_empty_name_rejected(self, client, admin_headers, test_device_claimed):
+        """Nama kosong ditolak"""
+        response = client.patch(
+            f"/api/devices/{test_device_claimed.id}",
+            json={"name": "   "},
+            headers=admin_headers
+        )
+        assert response.status_code == 422
+
+    def test_rename_too_long_rejected(self, client, admin_headers, test_device_claimed):
+        """Nama > 100 karakter ditolak"""
+        response = client.patch(
+            f"/api/devices/{test_device_claimed.id}",
+            json={"name": "A" * 101},
+            headers=admin_headers
+        )
+        assert response.status_code == 422
+
+
+class TestDeleteDevice:
+    """Test suite untuk DELETE /api/devices/{id}"""
+
+    def test_super_admin_can_delete(self, client, super_admin_headers, test_device_unclaimed):
+        """Super Admin bisa hapus device"""
+        response = client.delete(
+            f"/api/devices/{test_device_unclaimed.id}",
+            headers=super_admin_headers
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == "success"
+
+    def test_admin_cannot_delete(self, client, admin_headers, test_device_claimed):
+        """Admin biasa tidak bisa hapus device"""
+        response = client.delete(
+            f"/api/devices/{test_device_claimed.id}",
+            headers=admin_headers
+        )
+        assert response.status_code == 403
+
+    def test_user_cannot_delete(self, client, auth_headers, test_device_claimed):
+        """User biasa tidak bisa hapus device"""
+        response = client.delete(
+            f"/api/devices/{test_device_claimed.id}",
+            headers=auth_headers
+        )
+        assert response.status_code == 403
+
+    def test_delete_nonexistent_device(self, client, super_admin_headers):
+        """Hapus device yang tidak ada"""
+        fake_id = uuid.uuid4()
+        response = client.delete(
+            f"/api/devices/{fake_id}",
+            headers=super_admin_headers
+        )
+        assert response.status_code == 404
+
+    def test_delete_removes_sensor_logs(self, client, super_admin_headers, test_device_claimed, test_sensor_logs):
+        """Hapus device juga menghapus sensor logs terkait"""
+        response = client.delete(
+            f"/api/devices/{test_device_claimed.id}",
+            headers=super_admin_headers
+        )
+        assert response.status_code == 200
+        # Verify device is gone
+        get_response = client.get("/api/devices/all", headers=super_admin_headers)
+        device_ids = [d["id"] for d in get_response.json()]
+        assert str(test_device_claimed.id) not in device_ids

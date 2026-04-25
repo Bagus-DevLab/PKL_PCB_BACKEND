@@ -31,6 +31,25 @@ class DeviceAssignmentResponse(BaseModel):
 
 
 # ==========================================
+# DEVICE UPDATE SCHEMA
+# ==========================================
+
+class DeviceUpdate(BaseModel):
+    """Schema untuk update nama device"""
+    name: str
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 1:
+            raise ValueError("Nama device tidak boleh kosong")
+        if len(v) > 100:
+            raise ValueError("Nama device maksimal 100 karakter")
+        return v
+
+
+# ==========================================
 # SHARED VALIDATORS
 # ==========================================
 

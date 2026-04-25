@@ -8,7 +8,7 @@ from app.core.limiter import limiter
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.models.device import Device, SensorLog, DeviceAssignment
-from app.schemas import DeviceClaim, DeviceResponse, LogResponse, DeviceRegister
+from app.schemas import DeviceClaim, DeviceResponse, LogResponse, DeviceRegister, DeviceUpdate
 from app.schemas.device import (
     DeviceControl, DailyTemperatureStats, DailyTemperatureStatsResponse,
     DeviceAssignmentCreate, DeviceAssignmentResponse,
@@ -137,6 +137,97 @@ def get_unclaimed_devices(
     """Daftar device yang belum diklaim. Khusus Admin+."""
     devices = db.query(Device).filter(Device.user_id == None).all()
     return devices
+
+
+# ==========================================
+# 2.6 LIHAT SEMUA DEVICE (ADMIN+)
+# ==========================================
+@router.get("/all", response_model=List[DeviceResponse])
+@limiter.limit("30/minute")
+def get_all_devices(
+    request: Request,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_current_admin)
+):
+    """
+    Daftar SEMUA device (claimed + unclaimed). Khusus Admin+.
+    - Super Admin: lihat semua device
+    - Admin: lihat device miliknya + unclaimed
+    """
+    if admin_user.role == UserRole.SUPER_ADMIN.value:
+        devices = db.query(Device).order_by(Device.created_at.desc()).all()
+    else:
+        devices = db.query(Device).filter(
+            (Device.user_id == admin_user.id) | (Device.user_id == None)
+        ).order_by(Device.created_at.desc()).all()
+    return devices
+
+
+# ==========================================
+# 2.7 EDIT DEVICE (RENAME)
+# ==========================================
+@router.patch("/{device_id}", response_model=DeviceResponse)
+@limiter.limit("20/minute")
+def update_device(
+    request: Request,
+    device_id: UUID,
+    data: DeviceUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Edit nama device.
+    - Super Admin: edit device manapun
+    - Admin: edit device miliknya
+    """
+    device = get_owned_device(device_id, current_user, db)
+
+    old_name = device.name
+    device.name = data.name
+    db.commit()
+    db.refresh(device)
+
+    logger.info(f"Device DIUBAH - '{old_name}' -> '{data.name}' oleh {current_user.email}")
+    return device
+
+
+# ==========================================
+# 2.8 HAPUS DEVICE (SUPER ADMIN ONLY)
+# ==========================================
+@router.delete("/{device_id}")
+@limiter.limit("10/minute")
+def delete_device(
+    request: Request,
+    device_id: UUID,
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_current_super_admin)
+):
+    """
+    Hapus device beserta semua data terkait (sensor logs, assignments).
+    Khusus Super Admin. Operasi ini IRREVERSIBLE.
+    """
+    device = db.query(Device).filter(Device.id == device_id).first()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device tidak ditemukan")
+
+    mac = device.mac_address
+    name = device.name
+
+    # Hapus semua data terkait
+    deleted_assignments = db.query(DeviceAssignment).filter(DeviceAssignment.device_id == device_id).delete()
+    deleted_logs = db.query(SensorLog).filter(SensorLog.device_id == device_id).delete()
+
+    db.delete(device)
+    db.commit()
+
+    logger.warning(
+        f"Device DIHAPUS - {mac} ('{name}') oleh Super Admin {admin_user.email}. "
+        f"Dihapus: {deleted_logs} logs, {deleted_assignments} assignments."
+    )
+    return {
+        "status": "success",
+        "message": f"Device {mac} berhasil dihapus beserta {deleted_logs} sensor logs dan {deleted_assignments} assignments."
+    }
 
 
 # ==========================================

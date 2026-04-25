@@ -1,6 +1,6 @@
 # Device schemas
 from .device import (
-    DeviceClaim, DeviceResponse, DeviceRegister,
+    DeviceClaim, DeviceResponse, DeviceRegister, DeviceUpdate,
     DeviceAssignmentCreate, DeviceAssignmentResponse,
 )
 
@@ -15,6 +15,7 @@ __all__ = [
     "DeviceClaim",
     "DeviceResponse",
     "DeviceRegister",
+    "DeviceUpdate",
     "DeviceAssignmentCreate",
     "DeviceAssignmentResponse",
     # User
