@@ -5,7 +5,7 @@ from uuid import UUID
 
 from app.core.limiter import limiter
 from app.database import get_db
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from app.models.user import User, UserRole, FcmToken
 from app.models.device import Device, DeviceAssignment
 from app.schemas.user import UserResponse, UpdateUserRole, UpdateUserName
@@ -139,7 +139,7 @@ def update_user_role(
 
 class FcmTokenRequest(BaseModel):
     token: str
-    device_info: str = None
+    device_info: str = Field(default=None, max_length=200)
 
     @field_validator("token")
     @classmethod

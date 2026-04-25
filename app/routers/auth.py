@@ -2,7 +2,7 @@ import logging
 import os
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -30,7 +30,7 @@ if not firebase_admin._apps:
         firebase_admin.initialize_app(cred)
 
 class FirebaseLoginRequest(BaseModel):
-    id_token: str
+    id_token: str = Field(max_length=4096)
 
 @router.post("/firebase/login")
 @limiter.limit("10/minute")
