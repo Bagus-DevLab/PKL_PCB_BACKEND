@@ -12,11 +12,11 @@ jobs:
       - name: Checkout Kode
         uses: actions/checkout@v4
 
-      # Step 1: Buat file .env secara lokal di runner (aman, tidak via SSH heredoc)
+      # Step 1: Buat file .env secara lokal di runner
       - name: Buat file .env dari secret
         run: printf '%s' "${{ secrets.ENV_FILE }}" | tr -d '\r' > .env.production
 
-      # Step 2: Copy semua file project + .env ke VPS via SCP
+      # Step 2: Copy semua file project ke VPS via SCP
       - name: Copy file ke VPS via SCP
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -26,7 +26,7 @@ jobs:
           source: ".,!.git,!.venv,!node_modules,!pcb-landing-page/node_modules,!__pycache__"
           target: "/opt/api-pcb"
 
-      # Step 3: Copy .env secara terpisah (overwrite yang lama)
+      # Step 3: Copy .env secara terpisah
       - name: Copy .env ke VPS
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -44,17 +44,19 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
+            set -e
             cd /opt/api-pcb
 
-            # 1. Pindahkan .env.production ke .env
+            # ==========================================
+            # 1. SETUP ENVIRONMENT
+            # ==========================================
             mv -f .env.production .env
 
-            # 2. Pastikan folder tersedia dengan permission yang benar
-            mkdir -p mosquitto/log mosquitto/data mosquitto/config logs
+            mkdir -p mosquitto/log mosquitto/data mosquitto/config logs backups
             chmod 755 logs
             touch mosquitto/log/mosquitto.log
 
-            # 3. Setup MQTT credentials
+            # Setup MQTT credentials
             M_USER=$(grep MQTT_USERNAME .env | cut -d '=' -f2 | tr -d '\r')
             M_PASS=$(grep MQTT_PASSWORD .env | cut -d '=' -f2 | tr -d '\r')
 
@@ -64,12 +66,13 @@ jobs:
                 eclipse-mosquitto mosquitto_passwd -c -b /mosquitto/config/passwd "$M_USER" "$M_PASS"
             fi
 
-            # 4. Amankan file Mosquitto
             chown -R 1883:1883 mosquitto
             chmod 0700 mosquitto/log/mosquitto.log
             [ -f mosquitto/config/passwd ] && chmod 0700 mosquitto/config/passwd
 
-            # 5. Backup database sebelum deploy (safety net)
+            # ==========================================
+            # 2. BACKUP DATABASE (sebelum perubahan apapun)
+            # ==========================================
             if docker ps --format '{{.Names}}' | grep -q pcb_pkl_postgres; then
               echo "Membuat backup database sebelum deploy..."
               docker exec -u postgres pcb_pkl_postgres pg_dump \
@@ -80,34 +83,96 @@ jobs:
               echo "Backup selesai."
             fi
 
-            # 6. Build dan deploy (production mode — tanpa override)
+            # ==========================================
+            # 3. BUILD IMAGE BARU
+            # ==========================================
+            echo "Building Docker images..."
             docker compose -f docker-compose.yml -f docker-compose.prod.yml build
+
+            # ==========================================
+            # 4. START INFRASTRUCTURE (postgres + mosquitto dulu)
+            # ==========================================
+            echo "Starting infrastructure services..."
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d postgres mosquitto
+
+            # Tunggu PostgreSQL healthy (max 30 detik)
+            echo "Menunggu PostgreSQL healthy..."
+            for i in $(seq 1 6); do
+              sleep 5
+              if docker ps --format '{{.Names}} {{.Status}}' | grep pcb_pkl_postgres | grep -q healthy; then
+                echo "PostgreSQL healthy!"
+                break
+              fi
+              echo "Menunggu PostgreSQL... ($((i*5))s)"
+              if [ "$i" -eq 6 ]; then
+                echo "ERROR: PostgreSQL tidak healthy setelah 30 detik!"
+                docker logs pcb_pkl_postgres --tail 20
+                exit 1
+              fi
+            done
+
+            # ==========================================
+            # 5. JALANKAN MIGRATION (SEBELUM backend start)
+            # ==========================================
+            echo "Menjalankan database migration..."
+            NETWORK_NAME=$(docker network ls --format '{{.Name}}' | grep iot_network | head -1)
+
+            docker run --rm \
+              --network "$NETWORK_NAME" \
+              -v /opt/api-pcb/app:/app/app \
+              -v /opt/api-pcb/alembic:/app/alembic \
+              -v /opt/api-pcb/alembic.ini:/app/alembic.ini \
+              --env-file /opt/api-pcb/.env \
+              -w /app \
+              api-pcb-backend \
+              alembic upgrade head
+
+            echo "Migration selesai."
+
+            # ==========================================
+            # 6. START SEMUA SERVICES (backend + mqtt_worker)
+            # ==========================================
+            echo "Starting all services..."
             docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
-            # 7. Tunggu backend healthy (max 60 detik)
+            # ==========================================
+            # 7. TUNGGU BACKEND HEALTHY (max 60 detik)
+            # ==========================================
             echo "Menunggu backend healthy..."
+            BACKEND_HEALTHY=false
             for i in $(seq 1 12); do
               sleep 5
               if docker ps --format '{{.Names}} {{.Status}}' | grep pcb_pkl_backend | grep -q healthy; then
                 echo "Backend healthy!"
+                BACKEND_HEALTHY=true
                 break
               fi
-              echo "Menunggu... ($((i*5))s)"
+              echo "Menunggu backend... ($((i*5))s)"
             done
 
-            # 8. Verifikasi health check
+            if [ "$BACKEND_HEALTHY" = false ]; then
+              echo "ERROR: Backend tidak healthy setelah 60 detik!"
+              echo "=== Backend Logs ==="
+              docker logs pcb_pkl_backend --tail 30
+              exit 1
+            fi
+
+            # ==========================================
+            # 8. VERIFIKASI HEALTH CHECK
+            # ==========================================
             HEALTH=$(docker exec pcb_pkl_backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:80/api/health').read().decode())" 2>/dev/null || echo "FAILED")
 
             if echo "$HEALTH" | grep -q "healthy"; then
               echo "Deploy SUKSES! Health check passed."
             else
-              echo "PERINGATAN: Health check gagal. Response: $HEALTH"
-              echo "Cek logs: docker logs pcb_pkl_backend --tail 50"
+              echo "ERROR: Health check gagal! Response: $HEALTH"
+              echo "=== Backend Logs ==="
+              docker logs pcb_pkl_backend --tail 30
               exit 1
             fi
 
-            # 9. Jalankan migration (jika ada)
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T backend alembic upgrade head || true
-
-            # 10. Bersihkan image lama
+            # ==========================================
+            # 9. CLEANUP
+            # ==========================================
             docker image prune -f
+            echo "Deploy selesai!"
