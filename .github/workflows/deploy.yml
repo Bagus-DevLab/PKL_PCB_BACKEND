@@ -56,17 +56,20 @@ jobs:
             chmod 755 logs
             touch mosquitto/log/mosquitto.log
 
+            # Pre-create passwd file dan set ownership SEBELUM docker run
+            touch mosquitto/config/passwd
+            chown -R 1883:1883 mosquitto
+
             # Setup MQTT credentials
             M_USER=$(grep MQTT_USERNAME .env | cut -d '=' -f2 | tr -d '\r')
             M_PASS=$(grep MQTT_PASSWORD .env | cut -d '=' -f2 | tr -d '\r')
 
             if [ -n "$M_USER" ] && [ -n "$M_PASS" ]; then
-              docker run --rm \
+              docker run --rm -u root \
                 -v /opt/api-pcb/mosquitto/config:/mosquitto/config \
-                eclipse-mosquitto mosquitto_passwd -c -b /mosquitto/config/passwd "$M_USER" "$M_PASS"
+                eclipse-mosquitto mosquitto_passwd -b /mosquitto/config/passwd "$M_USER" "$M_PASS"
             fi
 
-            chown -R 1883:1883 mosquitto
             chmod 0700 mosquitto/log/mosquitto.log
             [ -f mosquitto/config/passwd ] && chmod 0700 mosquitto/config/passwd
 
