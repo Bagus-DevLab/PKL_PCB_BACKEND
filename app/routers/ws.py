@@ -150,16 +150,19 @@ async def websocket_device_stream(
     last_log_id = 0
 
     try:
-        # Polling loop — setiap cycle buat DB session baru
+        # Polling loop
+        # - asyncio.to_thread() agar blocking DB call tidak blokir event loop
+        # - send_json ke websocket sendiri (bukan broadcast) agar tidak N^2 duplicate
         while True:
             try:
-                data = _poll_device_data(device_id)
+                data = await asyncio.to_thread(_poll_device_data, device_id)
 
                 if data and data["log_id"] != last_log_id:
                     last_log_id = data["log_id"]
                     data["subscribers"] = ws_manager.get_subscriber_count(device_id_str)
-                    del data["log_id"]  # Hapus internal field
-                    await ws_manager.broadcast(device_id_str, data)
+                    del data["log_id"]
+                    # Kirim ke websocket sendiri, bukan broadcast ke semua subscriber
+                    await websocket.send_json(data)
 
                 await asyncio.sleep(POLL_INTERVAL)
 

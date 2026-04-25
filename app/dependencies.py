@@ -63,6 +63,14 @@ async def get_current_user(
             detail="User tidak ditemukan",
         )
 
+    # Cek apakah akun masih aktif
+    if not user.is_active:
+        logger.warning(f"Auth GAGAL - Akun nonaktif: {user.email}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Akun telah dinonaktifkan",
+        )
+
     logger.debug(f"Auth SUKSES - User {user.email} (role: {user.role})")
     return user
 

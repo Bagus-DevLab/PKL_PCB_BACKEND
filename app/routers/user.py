@@ -5,7 +5,7 @@ from uuid import UUID
 
 from app.core.limiter import limiter
 from app.database import get_db
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from app.models.user import User, UserRole, FcmToken
 from app.models.device import Device, DeviceAssignment
 from app.schemas.user import UserResponse, UpdateUserRole, UpdateUserName
@@ -140,6 +140,16 @@ def update_user_role(
 class FcmTokenRequest(BaseModel):
     token: str
     device_info: str = None
+
+    @field_validator("token")
+    @classmethod
+    def validate_token(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 10:
+            raise ValueError("FCM token terlalu pendek (minimal 10 karakter)")
+        if len(v) > 500:
+            raise ValueError("FCM token terlalu panjang (maksimal 500 karakter)")
+        return v
 
 
 MAX_FCM_TOKENS_PER_USER = 10

@@ -1,7 +1,7 @@
 """
 WebSocket Connection Manager.
 Mengelola active WebSocket connections per device.
-Thread-safe untuk concurrent access.
+Dirancang untuk single asyncio event loop (bukan multi-threaded).
 """
 
 import logging
