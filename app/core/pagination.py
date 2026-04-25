@@ -1,8 +1,10 @@
 import math
+from typing import Type
+from pydantic import BaseModel
 from sqlalchemy.orm import Query
 
 
-def paginate(query: Query, page: int = 1, limit: int = 20) -> dict:
+def paginate(query: Query, page: int = 1, limit: int = 20, schema: Type[BaseModel] = None) -> dict:
     """
     Apply pagination ke SQLAlchemy query.
     
@@ -10,17 +12,24 @@ def paginate(query: Query, page: int = 1, limit: int = 20) -> dict:
         query: SQLAlchemy query object
         page: Nomor halaman (1-indexed)
         limit: Jumlah item per halaman
+        schema: Pydantic schema untuk serialization (opsional).
+                Jika diberikan, ORM objects akan di-serialize via schema
+                sehingga hanya field yang didefinisikan di schema yang dikembalikan.
     
     Returns:
         dict dengan keys: data, total, page, limit, total_pages
     """
-    # Hitung total sebelum pagination
     total = query.count()
     total_pages = math.ceil(total / limit) if limit > 0 else 0
 
-    # Apply offset dan limit
     offset = (page - 1) * limit
-    data = query.offset(offset).limit(limit).all()
+    items = query.offset(offset).limit(limit).all()
+
+    # Serialize via schema jika diberikan
+    if schema:
+        data = [schema.model_validate(item).model_dump() for item in items]
+    else:
+        data = items
 
     return {
         "data": data,

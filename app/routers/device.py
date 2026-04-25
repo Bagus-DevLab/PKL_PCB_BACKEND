@@ -122,7 +122,7 @@ def read_my_devices(
     else:
         return {"data": [], "total": 0, "page": page, "limit": limit, "total_pages": 0}
 
-    return paginate(query, page, limit)
+    return paginate(query, page, limit, schema=DeviceResponse)
 
 
 # ==========================================
@@ -139,7 +139,7 @@ def get_unclaimed_devices(
 ):
     """Daftar device yang belum diklaim. Khusus Admin+."""
     query = db.query(Device).filter(Device.user_id == None)
-    return paginate(query, page, limit)
+    return paginate(query, page, limit, schema=DeviceResponse)
 
 
 # ==========================================
@@ -165,7 +165,7 @@ def get_all_devices(
         query = db.query(Device).filter(
             (Device.user_id == admin_user.id) | (Device.user_id == None)
         ).order_by(Device.created_at.desc())
-    return paginate(query, page, limit)
+    return paginate(query, page, limit, schema=DeviceResponse)
 
 
 # ==========================================
@@ -255,7 +255,7 @@ def read_device_logs(
         .filter(SensorLog.device_id == device_id)\
         .order_by(SensorLog.timestamp.desc())
 
-    return paginate(query, page, limit)
+    return paginate(query, page, limit, schema=LogResponse)
 
 
 # ==========================================
@@ -304,7 +304,7 @@ def get_device_alerts(
         .filter(SensorLog.device_id == device_id, SensorLog.is_alert == True)\
         .order_by(SensorLog.timestamp.desc())
 
-    return paginate(query, page, limit)
+    return paginate(query, page, limit, schema=LogResponse)
 
 
 # ==========================================

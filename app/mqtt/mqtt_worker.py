@@ -149,7 +149,7 @@ def on_message(client, userdata, msg):
         if is_alert:
             logger.warning(f"ALERT untuk {device.name}: {alert_msg}")
 
-            # Kirim push notification ke user terkait
+            # Kirim push notification ke user terkait (session terpisah)
             try:
                 from app.core.notifications import send_alert_notification
                 send_alert_notification(
@@ -159,7 +159,6 @@ def on_message(client, userdata, msg):
                     temperature=temp,
                     humidity=humidity,
                     ammonia=ammonia,
-                    db=db,
                 )
             except Exception as notif_err:
                 logger.error(f"Push notification gagal: {notif_err}")

@@ -23,6 +23,12 @@ fi
 # Tentukan retention days
 DAYS="${1:-${SENSOR_LOG_RETENTION_DAYS:-365}}"
 
+# Validasi: DAYS harus integer positif (mencegah SQL injection)
+if ! echo "$DAYS" | grep -qE '^[0-9]+$'; then
+    echo "$(date): ERROR - DAYS harus berupa angka positif, bukan '$DAYS'"
+    exit 1
+fi
+
 if [ "$DAYS" -eq 0 ]; then
     echo "$(date): Cleanup di-disable (SENSOR_LOG_RETENTION_DAYS=0). Skip."
     exit 0

@@ -142,8 +142,13 @@ class FcmTokenRequest(BaseModel):
     device_info: str = None
 
 
+MAX_FCM_TOKENS_PER_USER = 10
+
+
 @router.post("/me/fcm-token")
+@limiter.limit("20/minute")
 def register_fcm_token(
+    request: Request,
     data: FcmTokenRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -151,13 +156,12 @@ def register_fcm_token(
     """
     Register FCM token untuk push notification.
     Dipanggil oleh Flutter app saat login atau token refresh.
-    Satu user bisa punya banyak token (banyak HP).
+    Maksimal 10 token per user (10 device/HP).
     """
     # Cek apakah token sudah ada
     existing = db.query(FcmToken).filter(FcmToken.token == data.token).first()
 
     if existing:
-        # Token sudah ada — update user_id jika berbeda (token pindah user)
         if existing.user_id != current_user.id:
             existing.user_id = current_user.id
             existing.device_info = data.device_info
@@ -165,7 +169,17 @@ def register_fcm_token(
             logger.info(f"FCM token di-reassign ke {current_user.email}")
         return {"status": "success", "message": "FCM token sudah terdaftar"}
 
-    # Buat token baru
+    # Cek batas maksimal token per user
+    token_count = db.query(FcmToken).filter(FcmToken.user_id == current_user.id).count()
+    if token_count >= MAX_FCM_TOKENS_PER_USER:
+        # Hapus token paling lama
+        oldest = db.query(FcmToken).filter(
+            FcmToken.user_id == current_user.id
+        ).order_by(FcmToken.created_at.asc()).first()
+        if oldest:
+            db.delete(oldest)
+            logger.info(f"FCM token lama dihapus untuk {current_user.email} (max {MAX_FCM_TOKENS_PER_USER})")
+
     new_token = FcmToken(
         user_id=current_user.id,
         token=data.token,
@@ -179,7 +193,9 @@ def register_fcm_token(
 
 
 @router.delete("/me/fcm-token")
+@limiter.limit("20/minute")
 def unregister_fcm_token(
+    request: Request,
     data: FcmTokenRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)

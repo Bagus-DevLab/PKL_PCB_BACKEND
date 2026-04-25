@@ -81,7 +81,7 @@ def get_all_users(
     """Daftar semua user dengan pagination. Khusus Admin+."""
     logger.info(f"{admin_user.role} {admin_user.email} mengambil daftar user (page={page})")
     query = db.query(User).order_by(User.created_at.desc())
-    return paginate(query, page, limit)
+    return paginate(query, page, limit, schema=UserResponse)
 
 
 @router.post("/sync-firebase-users")

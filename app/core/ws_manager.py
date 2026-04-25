@@ -1,11 +1,11 @@
 """
 WebSocket Connection Manager.
 Mengelola active WebSocket connections per device.
+Thread-safe untuk concurrent access.
 """
 
 import logging
 from typing import Dict, Set
-from uuid import UUID
 from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
@@ -18,16 +18,14 @@ class ConnectionManager:
     """
 
     def __init__(self):
-        # device_id -> set of WebSocket connections
         self.active_connections: Dict[str, Set[WebSocket]] = {}
 
-    async def connect(self, device_id: str, websocket: WebSocket):
-        """Accept dan register WebSocket connection untuk device tertentu."""
-        await websocket.accept()
+    def register(self, device_id: str, websocket: WebSocket):
+        """Register WebSocket connection (accept sudah dilakukan di caller)."""
         if device_id not in self.active_connections:
             self.active_connections[device_id] = set()
         self.active_connections[device_id].add(websocket)
-        logger.debug(f"WS connected: device {device_id} (total: {len(self.active_connections[device_id])})")
+        logger.debug(f"WS registered: device {device_id} (total: {len(self.active_connections[device_id])})")
 
     def disconnect(self, device_id: str, websocket: WebSocket):
         """Remove WebSocket connection."""
@@ -42,16 +40,20 @@ class ConnectionManager:
         if device_id not in self.active_connections:
             return
 
-        dead_connections = set()
-        for ws in self.active_connections[device_id]:
+        # Copy set sebelum iterasi untuk menghindari RuntimeError
+        # jika disconnect() dipanggil dari thread lain saat iterasi
+        connections = self.active_connections[device_id].copy()
+
+        dead_connections = []
+        for ws in connections:
             try:
                 await ws.send_json(data)
             except Exception:
-                dead_connections.add(ws)
+                dead_connections.append(ws)
 
         # Cleanup dead connections
         for ws in dead_connections:
-            self.active_connections[device_id].discard(ws)
+            self.active_connections.get(device_id, set()).discard(ws)
 
     def get_subscriber_count(self, device_id: str) -> int:
         """Jumlah subscriber aktif untuk device tertentu."""
