@@ -27,7 +27,7 @@ firebase-admin==6.5.0
 # =========================
 # MQTT
 # =========================
-paho-mqtt==1.6.1
+paho-mqtt==2.1.0
 
 # =========================
 # Security & Rate Limiting
