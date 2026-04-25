@@ -1,5 +1,8 @@
 import json
 import logging
+import signal
+import sys
+import threading
 import time
 import paho.mqtt.client as mqtt
 from sqlalchemy.orm import Session
@@ -86,8 +89,8 @@ def on_message(client, userdata, msg):
     try:
         # Validasi format topic: harus "devices/{mac}/data"
         topic_parts = msg.topic.split("/")
-        if len(topic_parts) < 2:
-            logger.warning(f"Format topic tidak valid: {msg.topic}")
+        if len(topic_parts) < 3 or topic_parts[0] != "devices" or topic_parts[2] != "data":
+            logger.warning(f"Format topic tidak valid (expected devices/{{mac}}/data): {msg.topic}")
             return
         raw_mac = topic_parts[1]
 
@@ -152,7 +155,6 @@ def on_message(client, userdata, msg):
             # Kirim push notification di thread terpisah agar tidak blokir
             # MQTT message processing (FCM HTTP call bisa lambat)
             try:
-                import threading
                 from app.core.notifications import send_alert_notification
                 threading.Thread(
                     target=send_alert_notification,
@@ -173,8 +175,13 @@ def on_message(client, userdata, msg):
 
     except json.JSONDecodeError:
         logger.error(f"Payload bukan JSON valid dari topic: {msg.topic}")
+    except UnicodeDecodeError:
+        logger.error(f"Payload bukan UTF-8 valid dari topic: {msg.topic}")
     except Exception as e:
-        db.rollback()
+        try:
+            db.rollback()
+        except Exception:
+            pass
         logger.error(f"Error Worker: {e}")
     finally:
         db.close()
@@ -201,13 +208,34 @@ client.on_message = on_message
 # Enable automatic reconnection
 client.reconnect_delay_set(min_delay=1, max_delay=30)
 
+# ==========================================
+# Graceful Shutdown Handler
+# ==========================================
+
+def _shutdown_handler(signum, frame):
+    """Handle SIGTERM/SIGINT untuk graceful shutdown."""
+    sig_name = signal.Signals(signum).name
+    logger.info(f"Received {sig_name}, shutting down MQTT Worker...")
+    try:
+        client.disconnect()
+    except Exception:
+        pass
+    sys.exit(0)
+
+
 # Loop utama dengan reconnection logic
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, _shutdown_handler)
+    signal.signal(signal.SIGINT, _shutdown_handler)
+
     logger.info("MQTT Worker Starting...")
     while True:
         try:
             client.connect(MQTT_BROKER, MQTT_PORT, 60)
             client.loop_forever()
+        except SystemExit:
+            logger.info("MQTT Worker stopped.")
+            break
         except Exception as e:
             logger.error(f"Gagal connect ke broker: {e}. Retry dalam 5 detik...")
             time.sleep(5)

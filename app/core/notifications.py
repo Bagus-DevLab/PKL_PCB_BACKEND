@@ -7,8 +7,14 @@ mengganggu transaction caller jika terjadi error.
 """
 
 import logging
+import time
 
 logger = logging.getLogger(__name__)
+
+# Cooldown: max 1 notifikasi per device per 5 menit.
+# Key: device_id (str), Value: time.monotonic() saat terakhir kirim.
+NOTIFICATION_COOLDOWN_SECONDS = 300
+_notification_cooldown: dict[str, float] = {}
 
 
 def send_alert_notification(
@@ -39,8 +45,20 @@ def send_alert_notification(
         logger.warning("Firebase Admin SDK tidak tersedia. Push notification dilewati.")
         return
 
-    db = SessionLocal()
+    # Cooldown check: skip jika notifikasi terakhir < 5 menit lalu
+    now = time.monotonic()
+    last_sent = _notification_cooldown.get(device_id)
+    if last_sent is not None and (now - last_sent) < NOTIFICATION_COOLDOWN_SECONDS:
+        logger.debug(
+            f"Notification cooldown active for device {device_name} "
+            f"({int(NOTIFICATION_COOLDOWN_SECONDS - (now - last_sent))}s remaining)"
+        )
+        return
+
+    db = None
     try:
+        db = SessionLocal()
+
         # Cari device
         device = db.query(Device).filter(Device.id == device_id).first()
         if not device:
@@ -105,6 +123,9 @@ def send_alert_notification(
             f"{response.success_count} success, {response.failure_count} failed"
         )
 
+        # Update cooldown timestamp setelah berhasil kirim
+        _notification_cooldown[device_id] = time.monotonic()
+
         # Hapus token yang invalid
         if response.failure_count > 0:
             for i, send_response in enumerate(response.responses):
@@ -118,9 +139,11 @@ def send_alert_notification(
 
     except Exception as e:
         logger.error(f"FCM notification error: {e}")
-        try:
-            db.rollback()
-        except Exception:
-            pass
+        if db is not None:
+            try:
+                db.rollback()
+            except Exception:
+                pass
     finally:
-        db.close()
+        if db is not None:
+            db.close()
