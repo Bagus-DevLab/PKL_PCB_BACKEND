@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     # Default 120 detik (2 menit) — toleransi 2x interval heartbeat normal (60 detik).
     DEVICE_ONLINE_TIMEOUT_SECONDS: int = 120
     
+    # Data Retention — berapa hari sensor logs disimpan sebelum dihapus otomatis.
+    # Default 365 hari (1 tahun). Set 0 untuk disable (simpan selamanya).
+    SENSOR_LOG_RETENTION_DAYS: int = 365
+    
     # Admin Seed - Email yang otomatis dijadikan admin saat pertama kali login
     # Digunakan untuk bootstrap admin pertama (chicken-and-egg problem)
     INITIAL_ADMIN_EMAIL: str = ""

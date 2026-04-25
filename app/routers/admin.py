@@ -160,3 +160,70 @@ def sync_firebase_users(
 
     logger.info(f"Sync selesai: {len(synced)} baru, {len(skipped)} sudah ada, {len(failed)} gagal")
     return result
+
+
+@router.post("/cleanup-logs")
+@limiter.limit("5/minute")
+def cleanup_old_sensor_logs(
+    request: Request,
+    days: int = Query(
+        default=None,
+        ge=1,
+        description="Hapus logs lebih lama dari N hari. Default: SENSOR_LOG_RETENTION_DAYS dari .env"
+    ),
+    db: Session = Depends(get_db),
+    admin_user: User = Depends(get_current_super_admin)
+):
+    """
+    Hapus sensor logs yang lebih lama dari retention period.
+    Khusus Super Admin. Rate limited: 5x per menit.
+    
+    - Jika `days` tidak diberikan, gunakan SENSOR_LOG_RETENTION_DAYS dari .env (default 365).
+    - Jika SENSOR_LOG_RETENTION_DAYS = 0, cleanup di-disable (return error).
+    """
+    from datetime import datetime, timezone, timedelta
+    from app.models.device import SensorLog
+
+    retention_days = days if days is not None else settings.SENSOR_LOG_RETENTION_DAYS
+
+    if retention_days == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Data retention di-disable (SENSOR_LOG_RETENTION_DAYS=0). Tidak ada data yang dihapus."
+        )
+
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
+
+    # Hitung dulu berapa yang akan dihapus
+    count_to_delete = db.query(func.count(SensorLog.id)).filter(
+        SensorLog.timestamp < cutoff_date
+    ).scalar()
+
+    if count_to_delete == 0:
+        return {
+            "status": "success",
+            "message": f"Tidak ada sensor logs yang lebih lama dari {retention_days} hari.",
+            "deleted_count": 0,
+            "retention_days": retention_days,
+            "cutoff_date": cutoff_date.isoformat(),
+        }
+
+    # Hapus data lama
+    deleted = db.query(SensorLog).filter(
+        SensorLog.timestamp < cutoff_date
+    ).delete()
+
+    db.commit()
+
+    logger.warning(
+        f"CLEANUP oleh {admin_user.email}: {deleted} sensor logs dihapus "
+        f"(lebih lama dari {retention_days} hari, cutoff: {cutoff_date.isoformat()})"
+    )
+
+    return {
+        "status": "success",
+        "message": f"{deleted} sensor logs berhasil dihapus.",
+        "deleted_count": deleted,
+        "retention_days": retention_days,
+        "cutoff_date": cutoff_date.isoformat(),
+    }

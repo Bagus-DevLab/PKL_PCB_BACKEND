@@ -218,6 +218,48 @@ class TestAdminEndpointAccess:
         assert response.status_code == 200
 
 
+class TestCleanupLogs:
+    """Test suite untuk POST /api/admin/cleanup-logs"""
+
+    def test_super_admin_can_cleanup(self, client, super_admin_headers, test_device_claimed, test_sensor_logs):
+        """Super Admin bisa cleanup logs"""
+        response = client.post(
+            "/api/admin/cleanup-logs?days=1",
+            headers=super_admin_headers
+        )
+        assert response.status_code == 200
+        assert "deleted_count" in response.json()
+
+    def test_admin_cannot_cleanup(self, client, admin_headers):
+        """Admin biasa tidak bisa cleanup"""
+        response = client.post(
+            "/api/admin/cleanup-logs",
+            headers=admin_headers
+        )
+        assert response.status_code == 403
+
+    def test_user_cannot_cleanup(self, client, auth_headers):
+        """User biasa tidak bisa cleanup"""
+        response = client.post(
+            "/api/admin/cleanup-logs",
+            headers=auth_headers
+        )
+        assert response.status_code == 403
+
+    def test_cleanup_no_old_data(self, client, super_admin_headers):
+        """Cleanup saat tidak ada data lama"""
+        response = client.post(
+            "/api/admin/cleanup-logs?days=365",
+            headers=super_admin_headers
+        )
+        assert response.status_code == 200
+        assert response.json()["deleted_count"] == 0
+
+    def test_cleanup_without_auth(self, client):
+        response = client.post("/api/admin/cleanup-logs")
+        assert response.status_code == 401
+
+
 class TestHealthCheck:
     """Test suite untuk GET /api/health"""
 
