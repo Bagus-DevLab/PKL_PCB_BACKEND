@@ -51,6 +51,46 @@ def _close_device_websockets(device_id: str, reason: str = "Device dihapus"):
         logger.debug("No event loop available, skipping WS cleanup")
 
 
+def _check_and_downgrade_role(db: Session, user_id: UUID) -> None:
+    """
+    Cek apakah user perlu di-downgrade role-nya setelah assignment dihapus.
+    
+    Logika:
+    - Jika user adalah admin/super_admin, SKIP (role mereka bukan dari assignment).
+    - Jika sisa assignment = 0, downgrade ke "user".
+    - Jika sisa assignment > 0, hitung role tertinggi dari assignment yang tersisa:
+      - Ada "operator" → role = "operator"
+      - Hanya "viewer"  → role = "viewer"
+    
+    PENTING: Fungsi ini TIDAK memanggil db.commit().
+    Caller bertanggung jawab atas commit agar tetap transactionally safe.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return
+
+    # Jangan sentuh role admin-tier — mereka tidak bergantung pada assignment
+    if user.role in [UserRole.SUPER_ADMIN.value, UserRole.ADMIN.value]:
+        return
+
+    remaining = db.query(DeviceAssignment.role).filter(
+        DeviceAssignment.user_id == user_id
+    ).all()
+
+    if len(remaining) == 0:
+        if user.role in [UserRole.OPERATOR.value, UserRole.VIEWER.value]:
+            old_role = user.role
+            user.role = UserRole.USER.value
+            logger.info(f"Role DOWNGRADE - {user.email}: {old_role} -> user (0 assignment tersisa)")
+    else:
+        roles = {r[0] for r in remaining}
+        highest = UserRole.OPERATOR.value if UserRole.OPERATOR.value in roles else UserRole.VIEWER.value
+        if user.role != highest:
+            old_role = user.role
+            user.role = highest
+            logger.info(f"Role ADJUSTED - {user.email}: {old_role} -> {highest} (sesuai assignment tersisa)")
+
+
 # ==========================================
 # 0. REGISTER DEVICE (KHUSUS SUPER ADMIN)
 # ==========================================
@@ -239,9 +279,20 @@ def delete_device(
     mac = device.mac_address
     name = device.name
 
+    # Kumpulkan user_id yang terdampak SEBELUM assignment dihapus
+    affected_user_ids = [
+        row[0] for row in db.query(DeviceAssignment.user_id).filter(
+            DeviceAssignment.device_id == device_id
+        ).distinct().all()
+    ]
+
     # Hapus semua data terkait
     deleted_assignments = db.query(DeviceAssignment).filter(DeviceAssignment.device_id == device_id).delete()
     deleted_logs = db.query(SensorLog).filter(SensorLog.device_id == device_id).delete()
+
+    # Downgrade role user yang tidak punya assignment lagi
+    for uid in affected_user_ids:
+        _check_and_downgrade_role(db, uid)
 
     db.delete(device)
     db.commit()
@@ -415,8 +466,19 @@ def unclaim_device(
 
     old_name = device.name
 
+    # Kumpulkan user_id yang terdampak SEBELUM assignment dihapus
+    affected_user_ids = [
+        row[0] for row in db.query(DeviceAssignment.user_id).filter(
+            DeviceAssignment.device_id == device_id
+        ).distinct().all()
+    ]
+
     # Hapus semua assignment terkait device ini
     db.query(DeviceAssignment).filter(DeviceAssignment.device_id == device_id).delete()
+
+    # Downgrade role user yang tidak punya assignment lagi
+    for uid in affected_user_ids:
+        _check_and_downgrade_role(db, uid)
 
     device.user_id = None
     device.name = None
@@ -555,6 +617,10 @@ def unassign_user_from_device(
 
     target_user = db.query(User).filter(User.id == user_id).first()
     db.delete(assignment)
+
+    # Cek apakah user perlu di-downgrade setelah assignment dihapus
+    _check_and_downgrade_role(db, user_id)
+
     db.commit()
 
     logger.info(f"Unassign SUKSES - {target_user.email if target_user else user_id} dari device {device.name}")
