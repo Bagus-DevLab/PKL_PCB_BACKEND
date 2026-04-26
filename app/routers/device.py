@@ -80,14 +80,20 @@ def _check_and_downgrade_role(db: Session, user_id: UUID) -> None:
     if len(remaining) == 0:
         if user.role in [UserRole.OPERATOR.value, UserRole.VIEWER.value]:
             old_role = user.role
-            user.role = UserRole.USER.value
+            db.query(User).filter(User.id == user_id).update(
+                {"role": UserRole.USER.value},
+                synchronize_session=False
+            )
             logger.info(f"Role DOWNGRADE - {user.email}: {old_role} -> user (0 assignment tersisa)")
     else:
         roles = {r[0] for r in remaining}
         highest = UserRole.OPERATOR.value if UserRole.OPERATOR.value in roles else UserRole.VIEWER.value
         if user.role != highest:
             old_role = user.role
-            user.role = highest
+            db.query(User).filter(User.id == user_id).update(
+                {"role": highest},
+                synchronize_session=False
+            )
             logger.info(f"Role ADJUSTED - {user.email}: {old_role} -> {highest} (sesuai assignment tersisa)")
 
 
@@ -617,6 +623,7 @@ def unassign_user_from_device(
 
     target_user = db.query(User).filter(User.id == user_id).first()
     db.delete(assignment)
+    db.flush()  # Flush pending delete agar query count di helper melihat state yang benar
 
     # Cek apakah user perlu di-downgrade setelah assignment dihapus
     _check_and_downgrade_role(db, user_id)
