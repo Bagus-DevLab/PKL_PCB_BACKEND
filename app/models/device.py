@@ -30,6 +30,7 @@ class SensorLog(Base):
     temperature = Column(Float)
     humidity = Column(Float)
     ammonia = Column(Float)
+    light_level = Column(Integer, nullable=True)  # 0 = gelap, 1 = terang (dari LDR)
 
     is_alert = Column(Boolean, default=False)
     alert_message = Column(String, nullable=True)

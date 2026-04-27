@@ -139,7 +139,7 @@ class DeviceResponse(BaseModel):
 class DeviceControl(BaseModel):
     # Komponen apa yang mau dikontrol?
     # Hanya komponen yang valid yang diterima
-    component: Literal["kipas", "lampu", "pompa", "pakan_otomatis"]
+    component: Literal["kipas", "lampu", "pompa", "pakan_otomatis", "exhaust_fan"]
     
     # Mau diapain?
     # True = NYALA (ON), False = MATI (OFF)

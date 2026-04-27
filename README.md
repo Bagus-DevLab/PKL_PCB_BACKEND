@@ -125,7 +125,7 @@ Device ownership is enforced at every layer &mdash; REST endpoints, WebSocket co
 |-------------|--------|
 | **Composite B-tree index** | `ix_sensor_logs_device_timestamp` on `(device_id, timestamp DESC)` &mdash; covers the most frequent query pattern. |
 | **CASCADE foreign keys** | `SensorLog.device_id` and `DeviceAssignment.device_id` use `ondelete="CASCADE"` for safe device deletion. |
-| **Migration chain** | `001_add_role` &rarr; `002_role_hierarchy` &rarr; `003_fcm_tokens` &rarr; `004_cascade_sensor_log` &rarr; `005_composite_index` |
+| **Migration chain** | `001_add_role` &rarr; `002_role_hierarchy` &rarr; `003_fcm_tokens` &rarr; `004_cascade_sensor_log` &rarr; `005_composite_index` &rarr; `006_light_level` |
 
 ---
 
@@ -278,7 +278,7 @@ pkl-pcb/
 │   ├── dependencies.py               #   Auth: get_current_user, role checks, device access
 │   └── main.py                       #   App init, lifespan, middleware, exception handlers
 ├── pcb-landing-page/                 # React frontend (landing + admin dashboard)
-├── alembic/                          # Database migrations (5 versions)
+├── alembic/                          # Database migrations (6 versions)
 ├── tests/                            # pytest suite — 117 test cases
 │   ├── conftest.py                   #   Fixtures, SQLite in-memory DB, test users
 │   ├── test_device.py                #   49 tests — CRUD, claims, assignments, control
@@ -320,6 +320,8 @@ pytest -k "test_admin_can" -v      # pattern match
 
 ## Hardware Integration (ESP32)
 
+> Full hardware documentation: [`HARDWARE_INTEGRATION.md`](HARDWARE_INTEGRATION.md)
+
 ### Publish sensor data
 
 **Topic:** `devices/{MAC_ADDRESS}/data`
@@ -328,17 +330,19 @@ pytest -k "test_admin_can" -v      # pattern match
 {
   "temperature": 30.5,
   "humidity": 75.0,
-  "ammonia": 12.5
+  "ammonia": 12.5,
+  "light_level": 1
 }
 ```
 
-All three fields are required. Validated ranges:
+Validated ranges:
 
-| Field | Min | Max | Unit |
-|-------|----:|----:|------|
-| `temperature` | -40 | 80 | °C |
-| `humidity` | 0 | 100 | % |
-| `ammonia` | 0 | 500 | ppm |
+| Field | Min | Max | Unit | Required |
+|-------|----:|----:|------|:--------:|
+| `temperature` | -40 | 80 | °C | Yes |
+| `humidity` | 0 | 100 | % | Yes |
+| `ammonia` | 0 | 500 | ppm | Yes |
+| `light_level` | 0 | 1 | binary | Optional |
 
 ### Subscribe to control commands
 
@@ -351,7 +355,7 @@ All three fields are required. Validated ranges:
 }
 ```
 
-Valid components: `kipas` · `lampu` · `pompa` · `pakan_otomatis`
+Valid components: `kipas` · `lampu` · `pompa` · `pakan_otomatis` · `exhaust_fan`
 
 ---
 

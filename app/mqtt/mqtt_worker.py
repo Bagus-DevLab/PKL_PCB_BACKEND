@@ -81,6 +81,7 @@ def validate_sensor_data(payload: dict) -> dict | None:
     """
     Validasi payload sensor data dari MQTT.
     Tolak payload yang tidak lengkap (field wajib: temperature, humidity, ammonia).
+    Field opsional: light_level (integer 0-1 dari LDR).
     """
     required_fields = ["temperature", "humidity", "ammonia"]
     for field in required_fields:
@@ -102,7 +103,17 @@ def validate_sensor_data(payload: dict) -> dict | None:
     if not (SENSOR_AMMONIA_MIN <= ammonia <= SENSOR_AMMONIA_MAX):
         return None
 
-    return {"temp": temp, "humidity": humidity, "ammonia": ammonia}
+    # light_level opsional (backward compatible dengan ESP32 lama)
+    light_level = None
+    if "light_level" in payload:
+        try:
+            light_level = int(payload["light_level"])
+            if not (0 <= light_level <= 1):
+                light_level = None  # Di luar range, abaikan saja
+        except (TypeError, ValueError):
+            light_level = None
+
+    return {"temp": temp, "humidity": humidity, "ammonia": ammonia, "light_level": light_level}
 
 
 # ==========================================
@@ -158,6 +169,7 @@ def on_message(client, userdata, msg):
         temp = sensor_data["temp"]
         ammonia = sensor_data["ammonia"]
         humidity = sensor_data["humidity"]
+        light_level = sensor_data["light_level"]
 
         # --- LOGIKA ALERT (AMBANG BATAS CONFIGURABLE) ---
         is_alert = False
@@ -184,6 +196,7 @@ def on_message(client, userdata, msg):
             temperature=temp,
             humidity=humidity,
             ammonia=ammonia,
+            light_level=light_level,
             is_alert=is_alert,
             alert_message=alert_msg if is_alert else None
         )

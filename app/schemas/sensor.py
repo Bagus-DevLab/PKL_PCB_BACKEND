@@ -9,6 +9,7 @@ class LogResponse(BaseModel):
     temperature: float
     humidity: float
     ammonia: float
+    light_level: Optional[int] = None  # 0 = gelap, 1 = terang (dari LDR ESP32)
     is_alert: bool 
     alert_message: Optional[str] 
     timestamp: datetime

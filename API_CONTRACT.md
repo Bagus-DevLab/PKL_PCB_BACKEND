@@ -707,6 +707,7 @@ Retrieve historical sensor data for a device.
       "temperature": 30.5,
       "humidity": 75.0,
       "ammonia": 12.5,
+      "light_level": 1,
       "is_alert": false,
       "alert_message": null,
       "timestamp": "2026-04-26T10:30:00Z"
@@ -727,6 +728,7 @@ Retrieve historical sensor data for a device.
 | `temperature` | float | Temperature in Celsius |
 | `humidity` | float | Relative humidity percentage |
 | `ammonia` | float | Ammonia concentration in ppm |
+| `light_level` | integer or null | LDR reading: `0` = dark, `1` = bright. `null` for legacy data. |
 | `is_alert` | boolean | Whether this reading triggered an alert |
 | `alert_message` | string or null | Alert description (e.g., "Suhu terlalu tinggi: 36.5°C") |
 | `timestamp` | ISO 8601 | When the reading was recorded |
@@ -762,7 +764,7 @@ Send a control command to a device via MQTT.
 
 | Field | Type | Constraints | Description |
 |-------|------|-------------|-------------|
-| `component` | string | **Required**, one of: `kipas`, `lampu`, `pompa`, `pakan_otomatis` | Hardware component to control |
+| `component` | string | **Required**, one of: `kipas`, `lampu`, `pompa`, `pakan_otomatis`, `exhaust_fan` | Hardware component to control |
 | `state` | boolean | **Required** | `true` = ON, `false` = OFF |
 
 **Component Reference:**
@@ -773,6 +775,7 @@ Send a control command to a device via MQTT.
 | `lampu` | Light | Coop lighting |
 | `pompa` | Pump | Water pump |
 | `pakan_otomatis` | Auto Feeder | Automatic feeding system |
+| `exhaust_fan` | Exhaust Fan | Exhaust fan for ammonia/heat ventilation |
 
 **Success Response (200):**
 
@@ -1323,6 +1326,7 @@ The server sends JSON messages every **3 seconds** (only when new data is availa
     "temperature": 30.5,
     "humidity": 75.0,
     "ammonia": 12.5,
+    "light_level": 1,
     "is_alert": false,
     "alert_message": null,
     "timestamp": "2026-04-26T10:30:00"
@@ -1343,6 +1347,7 @@ The server sends JSON messages every **3 seconds** (only when new data is availa
 | `latest.temperature` | float | Temperature in Celsius |
 | `latest.humidity` | float | Relative humidity percentage |
 | `latest.ammonia` | float | Ammonia concentration in ppm |
+| `latest.light_level` | integer or null | LDR reading: `0` = dark, `1` = bright |
 | `latest.is_alert` | boolean | Whether this reading triggered an alert |
 | `latest.alert_message` | string or null | Alert description |
 | `latest.timestamp` | string | ISO 8601 timestamp of the reading |

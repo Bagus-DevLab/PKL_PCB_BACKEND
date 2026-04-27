@@ -114,6 +114,7 @@ def _poll_device_data(device_id: UUID) -> dict | None:
                 "temperature": latest_log.temperature,
                 "humidity": latest_log.humidity,
                 "ammonia": latest_log.ammonia,
+                "light_level": latest_log.light_level,
                 "is_alert": latest_log.is_alert,
                 "alert_message": latest_log.alert_message,
                 "timestamp": latest_log.timestamp.isoformat() if latest_log.timestamp else None,
