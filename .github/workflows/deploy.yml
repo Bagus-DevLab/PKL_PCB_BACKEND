@@ -179,3 +179,18 @@ jobs:
             # ==========================================
             docker image prune -f
             echo "Deploy selesai!"
+      
+      # Step 5: Kirim Notifikasi ke n8n jika gagal
+      - name: Notifikasi Error ke n8n
+        if: failure() # Step ini cuma jalan kalau ada step sebelumnya yang error
+        run: |
+          curl -X POST "${{ secrets.N8N_WEBHOOK_URL }}" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "project": "Palcomtech Chicken Box (PCB)",
+            "event": "${{ github.event_name }}",
+            "commit_hash": "${{ github.sha }}",
+            "author": "${{ github.actor }}",
+            "status": "FAILED",
+            "message": "Deployment backend gagal. Silakan cek log di GitHub Actions atau VPS."
+          }'
