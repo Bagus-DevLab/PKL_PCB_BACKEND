@@ -7,9 +7,11 @@ Instructions for AI agents working in this repository.
 Monorepo: FastAPI backend + React frontend served from **one Docker container** via Nginx (static files) + Uvicorn (API) managed by Supervisord.
 
 ```
-app/                  → FastAPI backend (Python 3.11)
+app/                  → FastAPI backend (Docker runtime: Python 3.11)
 pcb-landing-page/     → React 19 frontend (Vite 7, Tailwind v4, shadcn/ui)
 ```
+
+Local development/test virtualenvs may use Python 3.12, but the production Docker image is currently `python:3.11-slim`.
 
 All API endpoints are prefixed with `/api`. The frontend calls `/api/*` which Nginx proxies to Uvicorn. Do not create endpoints without the `/api` prefix — they will conflict with React SPA routing.
 

@@ -1373,3 +1373,70 @@ The server does **not** send ping/pong frames. If the connection drops:
 5. If the server returns close code **4001**, **4003**, or **4004**, do **not** reconnect.
 
 ---
+
+## 5. Role-Based Access Control (RBAC)
+
+The backend uses a hierarchical role system:
+
+```
+super_admin > admin > operator > viewer > user
+```
+
+| Role | Access Summary |
+|------|----------------|
+| `super_admin` | Full system access. Can register/delete devices, manage all roles, sync Firebase users, and access all devices. |
+| `admin` | Can claim devices, manage owned devices, assign operators/viewers, view/control owned devices, and access admin dashboard data. |
+| `operator` | Can view and control devices assigned to them. |
+| `viewer` | Can view assigned devices and sensor data, but cannot send control commands. |
+| `user` | Default role after registration. Has no device access until assigned or promoted. |
+
+Device access is intentionally checked per endpoint. When a user lacks access to a device, the backend may return `404` to avoid leaking whether the device exists.
+
+---
+
+## 6. Pagination Format
+
+Paginated endpoints return an object wrapper, not a bare array:
+
+```json
+{
+  "data": [],
+  "total": 0,
+  "page": 1,
+  "limit": 20,
+  "total_pages": 0
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `data` | array | Items for the current page. |
+| `total` | integer | Total matching items. |
+| `page` | integer | Current page number. |
+| `limit` | integer | Maximum items per page. |
+| `total_pages` | integer | Total page count. |
+
+The only documented device endpoint that returns a plain array is `GET /api/devices/{device_id}/assignments`, because assignments per device are bounded and small.
+
+---
+
+## 7. Validation Constraints Reference
+
+| Field / Parameter | Constraint |
+|-------------------|------------|
+| `id_token` | Required string, max 4096 characters. |
+| `full_name` | Required string, 1-100 characters after trimming. |
+| `mac_address` | `XX:XX:XX:XX:XX:XX` or `XXXXXXXXXXXX`; normalized to uppercase colon format. |
+| `device.name` | Required string, 1-100 characters after trimming. |
+| `page` | Integer, minimum 1. |
+| `limit` | Integer, 1-100. |
+| `days` for daily stats | Integer, 1-90. |
+| `days` for cleanup | Integer, minimum 1. Defaults to `SENSOR_LOG_RETENTION_DAYS`. |
+| FCM `token` | Required string, 10-500 characters after trimming. |
+| FCM `device_info` | Optional string, max 200 characters. |
+| `DeviceControl.component` | One of `kipas`, `lampu`, `pompa`, `pakan_otomatis`, `exhaust_fan`. |
+| `DeviceControl.state` | Boolean. |
+| MQTT `temperature` | Required number, -40 to 80. |
+| MQTT `humidity` | Required number, 0 to 100. |
+| MQTT `ammonia` | Required number, 0 to 500. |
+| MQTT `light_level` | Optional integer, 0 or 1. Invalid or omitted values are stored as `null`. |

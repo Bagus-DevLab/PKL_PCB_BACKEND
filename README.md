@@ -134,7 +134,7 @@ Device ownership is enforced at every layer &mdash; REST endpoints, WebSocket co
 | Requirement | Version |
 |-------------|---------|
 | [Docker](https://docs.docker.com/get-docker/) + Docker Compose | v2+ |
-| [Python](https://www.python.org/downloads/) | 3.12 (local dev / testing) |
+| [Python](https://www.python.org/downloads/) | 3.12 for local dev/testing; Docker runtime uses 3.11 |
 | [Node.js](https://nodejs.org/) | 20+ (frontend development) |
 | [Firebase](https://console.firebase.google.com/) project | Authentication enabled |
 | `firebase-adminsdk.json` | Service-account key file |

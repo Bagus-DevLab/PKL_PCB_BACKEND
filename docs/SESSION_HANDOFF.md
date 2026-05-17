@@ -1,7 +1,7 @@
 # SESSION_HANDOFF.md
 
 Handoff document for AI agents continuing work on this project.
-Last updated: 2026-04-26 | Session: Staff Engineer Audit + Fixes
+Last updated: 2026-05-17 | Session: Documentation consistency pass
 
 ---
 
@@ -23,7 +23,7 @@ VPS (2GB RAM, 2 Cores)
 ### Tech Stack
 - **Backend:** FastAPI, SQLAlchemy 2.0, Alembic, PyJWT, paho-mqtt 2.1
 - **Frontend:** React 19, Vite 7, Tailwind v4, shadcn/ui, Recharts, Framer Motion
-- **Auth:** Firebase Auth (login) → JWT (session) | 5-role RBAC hierarchy
+- **Auth:** Firebase Auth (login) → local JWT (session) | 5-role RBAC hierarchy
 - **Deploy:** GitHub Actions → SCP to VPS → Docker Compose
 
 ### Role Hierarchy
@@ -33,126 +33,78 @@ super_admin > admin > operator > viewer > user
 
 ---
 
-## 2. What Was Accomplished This Session
-
-### Staff Engineer Audit (9 findings, 5 fixed)
-
-**Fixed:**
-
-1. **Connection Pool Exhaustion (Critical)** — `app/database.py`
-   - Default pool_size=5 caused blocking under WebSocket + HTTP load
-   - Fix: `pool_size=3, max_overflow=7, pool_timeout=10, pool_recycle=1800`
-   - Conditional: only applies for PostgreSQL (SQLite in tests skips these)
-
-2. **JWT Auth Bypass for Deactivated Users (High)** — `app/routers/auth.py` + `app/routers/ws.py`
-   - `firebase_login` issued JWT without checking `is_active`
-   - `_authenticate_ws` returned user without checking `is_active`
-   - Fix: Added `is_active` guard in both locations
-
-3. **Missing Composite Index (High)** — `app/models/device.py`
-   - `sensor_logs` queried by `(device_id, timestamp DESC)` without composite index
-   - Fix: Added `Index("ix_sensor_logs_device_timestamp", "device_id", timestamp.desc())`
-   - Migration: `005_add_composite_index_sensor_logs.py`
-
-4. **TOCTOU Race in claim_device (Medium)** — `app/routers/device.py:78`
-   - Two admins could claim same device simultaneously
-   - Fix: Added `with_for_update()` for row-level locking
-
-5. **SensorLog FK Missing CASCADE (Medium)** — `app/models/device.py:28`
-   - `DELETE device` failed if MQTT worker inserted log during deletion
-   - Fix: Added `ondelete="CASCADE"` to `SensorLog.device_id`
-   - Migration: `004_add_cascade_to_sensor_log_device_fk.py`
-
-**Not yet fixed (from audit):**
-
-6. **Dashboard stats: 10 separate COUNT queries** — `app/routers/admin.py:37-56`
-   - Should collapse to 2-3 queries using conditional aggregation
-7. **N+1 query in get_device_assignments** — `app/routers/device.py:548-562`
-   - Should use `joinedload(DeviceAssignment.user)`
-8. **Unbounded DELETE in cleanup_logs** — `app/routers/admin.py:211-216`
-   - Should delete in batches of 1000 to avoid WAL bloat
-9. **MQTT worker queries device on every message** — `app/mqtt/mqtt_worker.py:101`
-   - Should add in-memory MAC→device_id cache with 5-min TTL
-10. **Notification cooldown not implemented** — documented in AGENTS.md but code missing
-    - Should add 5-min per-device cooldown in mqtt_worker.py
-
-### Earlier Work (Before Audit)
-
-- **4-role → 5-role hierarchy:** super_admin, admin, operator, viewer, user
-- **Device assignment system:** assign operator/viewer to specific devices
-- **Admin dashboard:** React + shadcn/ui with charts, role management, device CRUD
-- **Combined container:** Backend + Frontend in one Docker (Nginx + Uvicorn + Supervisor)
-- **WebSocket streaming:** Real-time sensor data via `/api/ws/devices/{id}`
-- **FCM push notifications:** Alert notifications to device owner + operators
-- **Pagination:** All list endpoints return `{data, total, page, limit, total_pages}`
-- **Data retention:** Cleanup endpoint + cron script for old sensor logs
-- **CI/CD overhaul:** Migration runs before backend start, backup before deploy
-- **Earthy color theme:** 5-color palette (#F1BF98, #E1F4CB, #BACBA9, #717568, #3F4739)
-- **Landing page animations:** Framer Motion throughout (shimmer, float, stagger, hover)
-
----
-
-## 3. Current Codebase State
+## 2. Current Codebase State
 
 | Metric | Value |
 |--------|-------|
-| Backend tests | **117 passed, 0 failed** |
-| Frontend build | **Success** (code-split: 5 chunks) |
-| Alembic head | `005_composite_index` |
-| Local dev DB | Stamped at 005, all tables + indexes exist |
-| Git status | Clean working tree, **15 commits ahead of origin/main** |
-| VPS production | Running older version — needs `git push` + deploy |
+| Backend tests | **117 collected** via `pytest --collect-only -q` |
+| Docker Python runtime | **Python 3.11** (`python:3.11-slim`) |
+| Local test Python observed | **Python 3.12.3** |
+| Frontend | React 19 + Vite 7 |
+| Alembic head | `006_light_level` |
+| Migration chain | `001_add_role` → `002_role_hierarchy` → `003_fcm_tokens` → `004_cascade_sensor_log` → `005_composite_index` → `006_light_level` |
+| API prefix | All REST and WebSocket routes are served under `/api` |
 
-### Migration Chain
-```
-001_add_role → 002_role_hierarchy → 003_fcm_tokens → 004_cascade_sensor_log → 005_composite_index
-```
+### Implemented Resilience/Performance Fixes
 
-### Key Config
-- `ENVIRONMENT=development` locally, `production` on VPS
-- `INITIAL_ADMIN_EMAIL` → auto-promotes to `super_admin`
-- `SENSOR_LOG_RETENTION_DAYS=365`
-- `DEVICE_ONLINE_TIMEOUT_SECONDS=120`
-- Pool: `pool_size=3, max_overflow=7` (PostgreSQL only)
+- PostgreSQL connection pool tuned in `app/database.py`: `pool_size=3`, `max_overflow=7`, `pool_timeout=10`, `pool_recycle=1800`, `pool_pre_ping`.
+- Deactivated users are rejected on Firebase login and WebSocket auth.
+- `sensor_logs` has `(device_id, timestamp DESC)` composite index.
+- Device claiming uses `SELECT ... FOR UPDATE` to prevent concurrent claim races.
+- `SensorLog.device_id` and `DeviceAssignment.device_id` use cascade deletion behavior.
+- Dashboard stats are consolidated into role/device aggregate queries.
+- Device assignment listing uses `joinedload(DeviceAssignment.user)`.
+- Sensor-log cleanup deletes in batches of 1000 rows.
+- MQTT worker has a 5-minute in-memory MAC-to-device cache.
+- FCM alert notifications have a 5-minute per-device cooldown.
+- WebSockets close proactively when a device is deleted or unclaimed.
 
----
+### Current Hardware/API State
 
-## 4. Pending: Push to Production
-
-**15 commits need to be pushed.** Before pushing:
-
-1. Update `secrets.ENV_FILE` on GitHub if any new env vars were added
-2. `git push origin main` → triggers GitHub Actions auto-deploy
-3. On VPS after deploy: verify `alembic current` shows `005_composite_index`
-4. Verify composite index exists: `SELECT indexname FROM pg_indexes WHERE tablename='sensor_logs'`
-
-**Flutter app still needs `/api/` prefix update** — all API calls changed from `/devices/` to `/api/devices/` etc. Flutter users cannot access API until app is updated.
+- Sensor payload required fields: `temperature`, `humidity`, `ammonia`.
+- `light_level` is supported but optional/backward-compatible; omitted or invalid values are stored as `null`.
+- Valid control components: `kipas`, `lampu`, `pompa`, `pakan_otomatis`, `exhaust_fan`.
+- Device registration (`POST /api/devices/register`) is `super_admin` only.
+- Device claiming (`POST /api/devices/claim`) is available to `super_admin` and `admin`.
 
 ---
 
-## 5. Next Steps / Phase 2: Resilience & Performance
+## 3. Key Config
 
-### Priority 1: Remaining Audit Fixes
-- [ ] Collapse dashboard stats to 2-3 queries (Finding 3)
-- [ ] Fix N+1 in get_device_assignments with joinedload (Finding 4)
-- [ ] Batch delete for cleanup_logs (Finding 6)
-- [ ] MQTT device cache to reduce DB queries (Finding 7)
-- [ ] Implement notification cooldown — 5 min per device (Finding 8)
+- `ENVIRONMENT=development` locally, `production` on VPS.
+- `INITIAL_ADMIN_EMAIL` auto-promotes the matching user to `super_admin`.
+- `SENSOR_LOG_RETENTION_DAYS=365` by default; `0` disables cleanup.
+- `DEVICE_ONLINE_TIMEOUT_SECONDS=120`.
+- `VITE_FIREBASE_*` values are Docker build args for the React build, not runtime-only backend env vars.
+- `CORS_ORIGINS` accepts JSON array, comma-separated list, or a single origin.
+
+---
+
+## 4. Operational Notes
+
+- Production relies on Alembic migrations; `Base.metadata.create_all()` only runs outside production.
+- Run `alembic upgrade head` after deploy and verify production reaches `006_light_level`.
+- Git/VPS deployment status is intentionally not tracked here because it becomes stale quickly. Use `git status`, `git log @{u}..`, and the GitHub Actions run history for current deployment state.
+- MQTT credentials and broker host should come from `.env` / deployment secrets. Do not hardcode real broker credentials in docs or firmware committed to the repo.
+
+---
+
+## 5. Next Steps
+
+### Priority 1: Production Hardening
+- [ ] Add TLS for MQTT (port 8883).
+- [ ] Rotate any MQTT credentials that were ever committed or shared in documentation.
+- [ ] Reduce JWT lifetime and add refresh-token flow if the mobile app needs longer sessions.
+- [ ] Add PostgreSQL integration tests for behavior that SQLite cannot faithfully cover.
 
 ### Priority 2: MQTT Worker Resilience
-- [ ] Handle device deletion while MQTT worker is processing
-- [ ] Add circuit breaker for FCM calls (prevent thread explosion)
-- [ ] Monitor daemon thread count for notification threads
+- [ ] Add a circuit breaker or bounded worker pool for FCM calls to avoid unbounded notification threads.
+- [ ] Monitor notification thread count and FCM failure rate.
+- [ ] Invalidate MQTT device cache more actively on device delete/unclaim if real-time consistency becomes necessary.
 
 ### Priority 3: WebSocket Edge Cases
-- [ ] Periodic re-auth check (every 30s) for role changes / deactivation
-- [ ] Graceful close when device is deleted
-- [ ] Connection limit per user (prevent resource exhaustion)
-
-### Priority 4: Production Hardening
-- [ ] Add TLS to MQTT (port 8883)
-- [ ] Reduce JWT expire time + implement refresh token
-- [ ] Add integration tests with PostgreSQL (not just SQLite)
+- [ ] Periodic re-auth check for role changes and user deactivation during long-lived connections.
+- [ ] Per-user or per-device WebSocket connection limits.
 
 ---
 
@@ -160,16 +112,18 @@ super_admin > admin > operator > viewer > user
 
 | File | Purpose |
 |------|---------|
-| `AGENTS.md` | Instructions for AI agents — **read this first** |
+| `docs/AGENTS.md` | Instructions for AI agents — read this first |
+| `docs/API_CONTRACT.md` | REST/WebSocket contract for Flutter/mobile clients |
+| `docs/HARDWARE_INTEGRATION.md` | ESP32/MQTT/BLE integration guide |
 | `app/database.py` | Engine + pool config + SessionLocal |
-| `app/dependencies.py` | Auth deps: get_current_user, get_device_with_access, etc. |
-| `app/routers/device.py` | All device CRUD + assignment endpoints |
+| `app/dependencies.py` | Auth deps: get_current_user, role checks, device access |
+| `app/routers/device.py` | Device CRUD, logs, alerts, control, assignments |
 | `app/routers/ws.py` | WebSocket real-time streaming endpoint |
 | `app/mqtt/mqtt_worker.py` | MQTT subscriber — sensor data ingestion |
 | `app/mqtt/publisher.py` | MQTT publisher — device control commands |
-| `app/core/notifications.py` | FCM push notification sender |
-| `app/core/pagination.py` | Shared pagination helper with schema serialization |
+| `app/core/notifications.py` | FCM push sender + cooldown |
+| `app/core/pagination.py` | Shared pagination helper |
 | `app/core/ws_manager.py` | WebSocket connection manager singleton |
 | `app/models/device.py` | Device, SensorLog, DeviceAssignment models |
 | `app/models/user.py` | User, UserRole, FcmToken models |
-| `tests/conftest.py` | Test fixtures — env vars set before imports |
+| `tests/conftest.py` | Test fixtures and required env vars before imports |

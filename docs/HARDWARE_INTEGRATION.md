@@ -209,13 +209,13 @@ Buka **Tools → Manage Libraries**, install:
 
 ### 3.3 Konfigurasi MQTT Broker
 
-ESP32 perlu tahu alamat MQTT broker. Konfigurasi ini di-hardcode di kode:
+ESP32 perlu tahu alamat MQTT broker. Untuk firmware production, isi nilai ini dari konfigurasi build atau file lokal yang tidak ikut di-commit. Contoh placeholder:
 
 ```cpp
-const char* MQTT_BROKER = "43.153.201.137";  // IP publik VPS
+const char* MQTT_BROKER = "mqtt.example.com";  // IP/domain broker MQTT
 const int   MQTT_PORT   = 1883;
-const char* MQTT_USER   = "device_user";
-const char* MQTT_PASS   = "pkl_pcb_iot_bagus_2026";
+const char* MQTT_USER   = "your_mqtt_username";
+const char* MQTT_PASS   = "your_mqtt_password";
 ```
 
 > **Development:** Jika broker di jaringan lokal, gunakan IP lokal (misal `192.168.1.100`).
@@ -261,7 +261,7 @@ Control : devices/AABBCCDDEEFF/control
 
 ### 3.6 Mendaftarkan Device ke Backend
 
-Setelah mendapatkan MAC address, Admin harus mendaftarkan device ke backend:
+Setelah mendapatkan MAC address, Super Admin mendaftarkan device ke backend, lalu Admin atau Super Admin mengklaim device:
 
 **Step 1 — Register MAC (Super Admin):**
 ```bash
@@ -292,10 +292,10 @@ curl -X POST "{{BASE_URL}}/api/devices/claim" \
 
 | Parameter | Nilai | Keterangan |
 |-----------|-------|------------|
-| **Broker** | `43.153.201.137` (atau domain Anda) | IP publik VPS yang menjalankan Mosquitto |
+| **Broker** | `mqtt.example.com` (atau IP/domain Anda) | Host MQTT broker yang menjalankan Mosquitto |
 | **Port** | `1883` | Port default MQTT (tanpa TLS) |
-| **Username** | `device_user` | Kredensial autentikasi broker |
-| **Password** | `pkl_pcb_iot_bagus_2026` | Kredensial autentikasi broker |
+| **Username** | `your_mqtt_username` | Kredensial autentikasi broker |
+| **Password** | `your_mqtt_password` | Kredensial autentikasi broker |
 | **Client ID** | `ESP32-{MAC_TANPA_COLON}` | Unik per device, contoh: `ESP32-AABBCCDDEEFF` |
 | **Keep Alive** | 60 detik | Interval ping ke broker agar koneksi tidak timeout |
 | **QoS** | 1 (at least once) | Pesan dijamin terkirim minimal 1 kali |
@@ -371,11 +371,12 @@ ESP32 publish payload JSON berikut ke topic `devices/{MAC}/data` setiap **30 det
 | `temperature` | float | **Ya** | -40 | 80 | Celsius (C) | DHT22 / DHT11 |
 | `humidity` | float | **Ya** | 0 | 100 | Persen (%) | DHT22 / DHT11 |
 | `ammonia` | float | **Ya** | 0 | 500 | Parts per million (ppm) | MQ-135 (ADC) |
-| `light_level` | integer | **Ya** | 0 | 1 | Binary | LDR (digital) |
+| `light_level` | integer | Opsional | 0 | 1 | Binary | LDR (digital) |
 
 **Keterangan `light_level`:**
 - `0` = Gelap (malam / cahaya rendah)
 - `1` = Terang (siang / cahaya cukup)
+- Jika field ini tidak dikirim atau nilainya tidak valid, backend tetap menerima payload dan menyimpan `light_level` sebagai `null` untuk kompatibilitas dengan firmware lama.
 
 ### 5.3 Validasi Backend
 
@@ -385,7 +386,7 @@ Backend memvalidasi setiap payload yang masuk. Jika tidak valid, data **dibuang*
 |----------|---------------|-------------|
 | Format JSON | Payload bukan JSON valid | `"Payload bukan JSON valid"` |
 | Encoding | Payload bukan UTF-8 | `"Payload bukan UTF-8 valid"` |
-| Field wajib | Salah satu field hilang | `"Payload tidak lengkap: field 'xxx' tidak ditemukan"` |
+| Field wajib | `temperature`, `humidity`, atau `ammonia` hilang | `"Payload tidak lengkap: field 'xxx' tidak ditemukan"` |
 | Tipe data | Field bukan angka (misal string) | `"Data sensor tidak valid"` |
 | Range suhu | temperature < -40 atau > 80 | `"Data sensor tidak valid"` |
 | Range humidity | humidity < 0 atau > 100 | `"Data sensor tidak valid"` |
@@ -819,7 +820,7 @@ if (digitalRead(RESET_BTN) == LOW) {
 | Gejala | Penyebab | Solusi |
 |--------|----------|--------|
 | Backend log: `"Unknown MAC: AABBCCDDEEFF"` | MAC address belum di-register atau belum di-claim di backend | 1. Register MAC via API: `POST /api/devices/register`<br>2. Claim device via API: `POST /api/devices/claim` |
-| Backend log: `"Payload tidak lengkap: field 'xxx' tidak ditemukan"` | Salah satu field wajib (`temperature`, `humidity`, `ammonia`, `light_level`) tidak ada di JSON | Pastikan payload JSON punya **4 field wajib**. Cek kode `serializeJson()`. |
+| Backend log: `"Payload tidak lengkap: field 'xxx' tidak ditemukan"` | Salah satu field wajib (`temperature`, `humidity`, `ammonia`) tidak ada di JSON | Pastikan payload JSON punya 3 field wajib. `light_level` opsional. Cek kode `serializeJson()`. |
 | Backend log: `"Data sensor tidak valid"` | Nilai sensor di luar range yang diizinkan | 1. Cek pembacaan sensor (mungkin rusak atau kabel lepas)<br>2. Cek range: suhu -40~80, humidity 0~100, ammonia 0~500 |
 | Backend log: `"Payload bukan JSON valid"` | ESP32 mengirim data yang bukan format JSON | Cek kode `serializeJson()`. Pastikan buffer cukup besar (256 byte). |
 | Backend log: `"Format topic tidak valid"` | Topic MQTT tidak sesuai format `devices/{mac}/data` | Cek variabel `TOPIC_DATA`. Pastikan format: `devices/AABBCCDDEEFF/data` |
@@ -917,10 +918,10 @@ float R0 = 5.27;
 // ================================================================
 // 3. KONFIGURASI MQTT
 // ================================================================
-const char* MQTT_BROKER = "43.153.201.137";  // IP publik VPS
+const char* MQTT_BROKER = "mqtt.example.com";  // IP/domain broker MQTT
 const int   MQTT_PORT   = 1883;
-const char* MQTT_USER   = "device_user";
-const char* MQTT_PASS   = "pkl_pcb_iot_bagus_2026";
+const char* MQTT_USER   = "your_mqtt_username";
+const char* MQTT_PASS   = "your_mqtt_password";
 
 // ================================================================
 // 4. KONFIGURASI BLE
@@ -1291,10 +1292,10 @@ brew install mosquitto
 
 ```bash
 mosquitto_pub \
-  -h 43.153.201.137 \
+  -h mqtt.example.com \
   -p 1883 \
-  -u "device_user" \
-  -P "pkl_pcb_iot_bagus_2026" \
+  -u "your_mqtt_username" \
+  -P "your_mqtt_password" \
   -t "devices/AABBCCDDEEFF/data" \
   -m '{"temperature":28.5,"humidity":72.0,"ammonia":15.0,"light_level":1}'
 ```
@@ -1303,10 +1304,10 @@ mosquitto_pub \
 
 ```bash
 mosquitto_pub \
-  -h 43.153.201.137 \
+  -h mqtt.example.com \
   -p 1883 \
-  -u "device_user" \
-  -P "pkl_pcb_iot_bagus_2026" \
+  -u "your_mqtt_username" \
+  -P "your_mqtt_password" \
   -t "devices/AABBCCDDEEFF/control" \
   -m '{"component":"lampu","state":"ON"}'
 ```
@@ -1316,19 +1317,19 @@ mosquitto_pub \
 ```bash
 # Monitor SEMUA topic devices (sensor data + control)
 mosquitto_sub \
-  -h 43.153.201.137 \
+  -h mqtt.example.com \
   -p 1883 \
-  -u "device_user" \
-  -P "pkl_pcb_iot_bagus_2026" \
+  -u "your_mqtt_username" \
+  -P "your_mqtt_password" \
   -t "devices/#" \
   -v
 
 # Monitor hanya sensor data dari device tertentu
 mosquitto_sub \
-  -h 43.153.201.137 \
+  -h mqtt.example.com \
   -p 1883 \
-  -u "device_user" \
-  -P "pkl_pcb_iot_bagus_2026" \
+  -u "your_mqtt_username" \
+  -P "your_mqtt_password" \
   -t "devices/AABBCCDDEEFF/data"
 ```
 
@@ -1515,20 +1516,18 @@ esp_deep_sleep_start();
 
 > **Catatan:** Deep sleep akan mematikan WiFi dan MQTT. ESP32 harus reconnect setiap bangun. Tidak cocok untuk monitoring real-time, tapi cocok untuk monitoring periodik.
 
-### 12.5 Perubahan Backend yang Dibutuhkan
+### 12.5 Status Dukungan Backend
 
-Untuk integrasi penuh dengan hardware baru ini, backend perlu diperbarui:
+Backend saat ini sudah mendukung payload hardware ini:
 
-| # | Perubahan | File | Prioritas |
-|:-:|-----------|------|:---------:|
-| 1 | Tambah field `light_level` ke model `SensorLog` | `app/models/device.py` | **Wajib** |
-| 2 | Buat migration Alembic untuk `light_level` | `alembic/versions/006_*.py` | **Wajib** |
-| 3 | Update validasi `validate_sensor_data()` | `app/mqtt/mqtt_worker.py` | **Wajib** |
-| 4 | Update `on_message()` untuk simpan `light_level` | `app/mqtt/mqtt_worker.py` | **Wajib** |
-| 5 | Tambah `"exhaust_fan"` ke schema `DeviceControl` | `app/schemas/device.py` | **Wajib** |
-| 6 | Tambah `light_level` ke schema `LogResponse` | `app/schemas/sensor.py` | Opsional |
-| 7 | Update `API_CONTRACT.md` | `API_CONTRACT.md` | Opsional |
-| 8 | Update `README.md` section Hardware | `README.md` | Opsional |
+| Dukungan | File |
+|----------|------|
+| Field `light_level` di `SensorLog` | `app/models/device.py` |
+| Migration Alembic `006_light_level` | `alembic/versions/006_add_light_level_to_sensor_log.py` |
+| Validasi sensor dengan `light_level` opsional | `app/mqtt/mqtt_worker.py` |
+| Penyimpanan `light_level` dari MQTT payload | `app/mqtt/mqtt_worker.py` |
+| Component control `"exhaust_fan"` | `app/schemas/device.py` |
+| Response log menyertakan `light_level` | `app/schemas/sensor.py` |
 
 ---
 
