@@ -81,7 +81,130 @@ Hasil eksekusi terakhir:
 
 ---
 
-## 4. Environment Testing
+## 4. Tabel Ringkasan Hasil Blackbox Testing
+
+Tabel berikut merangkum fitur yang diuji, penjelasan pengujian, output yang diharapkan, dan hasil aktual berdasarkan eksekusi unit testing terakhir.
+
+| No | Test yang Diuji | Penjelasan | Output yang Diharapkan | Hasil |
+|---:|-----------------|------------|------------------------|-------|
+| 1 | Claim device berhasil | Admin mengklaim device yang sudah terdaftar dan belum dimiliki user lain. | Sistem mengembalikan `200 OK`, data device berisi MAC address, nama device, dan `user_id`. | Berhasil |
+| 2 | Claim device tidak ditemukan | Admin mencoba mengklaim MAC address yang belum terdaftar. | Sistem mengembalikan `404 Not Found`. | Berhasil |
+| 3 | Claim device sudah diklaim | Admin mencoba mengklaim device yang sudah punya pemilik. | Sistem mengembalikan `400 Bad Request`. | Berhasil |
+| 4 | Claim device oleh user biasa | User role `user` mencoba mengklaim device. | Sistem mengembalikan `403 Forbidden`. | Berhasil |
+| 5 | Claim device tanpa login | Request claim dikirim tanpa token autentikasi. | Sistem mengembalikan `401 Unauthorized`. | Berhasil |
+| 6 | List device admin | Admin meminta daftar device. | Sistem mengembalikan `200 OK` dan hanya menampilkan device milik admin tersebut. | Berhasil |
+| 7 | List device user biasa | User biasa meminta daftar device. | Sistem mengembalikan `200 OK` dengan `data` kosong dan `total = 0`. | Berhasil |
+| 8 | List device operator | Operator yang memiliki assignment meminta daftar device. | Sistem mengembalikan `200 OK` dan menampilkan device yang di-assign. | Berhasil |
+| 9 | List device super admin | Super admin meminta daftar device. | Sistem mengembalikan `200 OK` dan menampilkan semua device. | Berhasil |
+| 10 | List device tanpa login | Request daftar device dikirim tanpa token. | Sistem mengembalikan `401 Unauthorized`. | Berhasil |
+| 11 | Baca sensor logs oleh admin | Admin membaca log sensor device miliknya. | Sistem mengembalikan `200 OK` dan jumlah log lebih dari 0. | Berhasil |
+| 12 | Baca sensor logs oleh operator | Operator membaca log sensor device yang di-assign. | Sistem mengembalikan `200 OK`. | Berhasil |
+| 13 | Baca sensor logs oleh viewer | Viewer membaca log sensor device yang di-assign. | Sistem mengembalikan `200 OK`. | Berhasil |
+| 14 | Baca sensor logs oleh user biasa | User biasa mencoba membaca log sensor. | Sistem mengembalikan `403 Forbidden`. | Berhasil |
+| 15 | Baca sensor logs tanpa assignment | Operator tanpa assignment mencoba membaca log device. | Sistem mengembalikan `404 Not Found`. | Berhasil |
+| 16 | Limit sensor logs | Admin membaca log sensor dengan parameter `limit=3`. | Sistem mengembalikan `200 OK` dan jumlah data maksimal 3. | Berhasil |
+| 17 | Kontrol device oleh admin | Admin mengirim perintah kontrol ke device miliknya. | Sistem mengembalikan `200 OK` jika MQTT tersedia atau `500` jika MQTT tidak tersedia di test. | Berhasil |
+| 18 | Kontrol device oleh operator | Operator mengirim perintah kontrol ke device assigned. | Sistem mengembalikan `200 OK` jika MQTT tersedia atau `500` jika MQTT tidak tersedia di test. | Berhasil |
+| 19 | Kontrol device oleh viewer | Viewer mencoba mengontrol device. | Sistem mengembalikan `403 Forbidden`. | Berhasil |
+| 20 | Kontrol device oleh user biasa | User biasa mencoba mengontrol device. | Sistem mengembalikan `403 Forbidden`. | Berhasil |
+| 21 | Kontrol device tanpa login | Request kontrol dikirim tanpa token. | Sistem mengembalikan `401 Unauthorized`. | Berhasil |
+| 22 | Baca alert device | Admin membaca daftar alert device. | Sistem mengembalikan `200 OK` dan semua data memiliki `is_alert = true`. | Berhasil |
+| 23 | Baca alert oleh user biasa | User biasa mencoba membaca alert device. | Sistem mengembalikan `403 Forbidden`. | Berhasil |
+| 24 | Unclaim device oleh admin | Admin melepas kepemilikan device miliknya. | Sistem mengembalikan `200 OK` dan `status = success`. | Berhasil |
+| 25 | Unclaim device oleh user biasa | User biasa mencoba unclaim device. | Sistem mengembalikan `403 Forbidden`. | Berhasil |
+| 26 | Unclaim device tanpa login | Request unclaim dikirim tanpa token. | Sistem mengembalikan `401 Unauthorized`. | Berhasil |
+| 27 | Assign operator | Admin memberi akses operator ke user pada device miliknya. | Sistem mengembalikan `200 OK` dan `role = operator`. | Berhasil |
+| 28 | Assign viewer | Admin memberi akses viewer ke user pada device miliknya. | Sistem mengembalikan `200 OK` dan `role = viewer`. | Berhasil |
+| 29 | Assign ke device milik admin lain | Admin mencoba assign user ke device yang bukan miliknya. | Sistem mengembalikan `404 Not Found`. | Berhasil |
+| 30 | Assign oleh user biasa | User biasa mencoba assign user ke device. | Sistem mengembalikan `403 Forbidden`. | Berhasil |
+| 31 | Duplicate assignment | Admin mencoba assign user yang sudah memiliki assignment pada device yang sama. | Sistem mengembalikan `400 Bad Request`. | Berhasil |
+| 32 | Unassign user | Admin mencabut assignment user dari device. | Sistem mengembalikan `200 OK`. | Berhasil |
+| 33 | Lihat daftar assignment | Admin melihat daftar user yang di-assign ke device. | Sistem mengembalikan `200 OK` dan response berupa array assignment. | Berhasil |
+| 34 | Super admin assign device manapun | Super admin memberi assignment pada device manapun. | Sistem mengembalikan `200 OK`. | Berhasil |
+| 35 | Lihat semua device oleh super admin | Super admin membuka endpoint `/api/devices/all`. | Sistem mengembalikan `200 OK` dan menampilkan semua device. | Berhasil |
+| 36 | Lihat semua device oleh admin | Admin membuka endpoint `/api/devices/all`. | Sistem mengembalikan `200 OK` dan menampilkan device miliknya serta device unclaimed. | Berhasil |
+| 37 | Lihat semua device oleh user biasa | User biasa membuka endpoint `/api/devices/all`. | Sistem mengembalikan `403 Forbidden`. | Berhasil |
+| 38 | Rename device oleh admin | Admin mengganti nama device miliknya. | Sistem mengembalikan `200 OK` dan nama device berubah. | Berhasil |
+| 39 | Rename device oleh super admin | Super admin mengganti nama device manapun. | Sistem mengembalikan `200 OK` dan nama device berubah. | Berhasil |
+| 40 | Rename device milik user lain | Admin mencoba rename device milik admin lain. | Sistem mengembalikan `404 Not Found`. | Berhasil |
+| 41 | Rename device oleh user biasa | User biasa mencoba rename device. | Sistem mengembalikan `403 Forbidden`. | Berhasil |
+| 42 | Rename dengan nama kosong | Admin mengirim nama kosong atau hanya spasi. | Sistem mengembalikan `422 Validation Error`. | Berhasil |
+| 43 | Rename dengan nama terlalu panjang | Admin mengirim nama lebih dari 100 karakter. | Sistem mengembalikan `422 Validation Error`. | Berhasil |
+| 44 | Delete device oleh super admin | Super admin menghapus device. | Sistem mengembalikan `200 OK` dan `status = success`. | Berhasil |
+| 45 | Delete device oleh admin | Admin biasa mencoba delete device. | Sistem mengembalikan `403 Forbidden`. | Berhasil |
+| 46 | Delete device oleh user biasa | User biasa mencoba delete device. | Sistem mengembalikan `403 Forbidden`. | Berhasil |
+| 47 | Delete device tidak ditemukan | Super admin menghapus device ID yang tidak ada. | Sistem mengembalikan `404 Not Found`. | Berhasil |
+| 48 | Delete device beserta sensor logs | Super admin menghapus device yang memiliki log sensor. | Sistem mengembalikan `200 OK` dan device tidak muncul lagi pada list. | Berhasil |
+| 49 | Profile user dengan token valid | User mengambil profil dirinya sendiri. | Sistem mengembalikan `200 OK`, email dan role sesuai. | Berhasil |
+| 50 | Profile tanpa token | Request profil dikirim tanpa token. | Sistem mengembalikan `401 Unauthorized`. | Berhasil |
+| 51 | Profile dengan token invalid | Request profil memakai token tidak valid. | Sistem mengembalikan `401 Unauthorized`. | Berhasil |
+| 52 | Profile dengan token expired | Request profil memakai token yang sudah expired. | Sistem mengembalikan `401 Unauthorized`. | Berhasil |
+| 53 | Profile dengan token malformed | Request profil memakai token rusak. | Sistem mengembalikan `401 Unauthorized`. | Berhasil |
+| 54 | Field role pada profile | Profile semua role dicek: user, admin, super_admin, operator, viewer. | Sistem mengembalikan field `role` sesuai role user. | Berhasil |
+| 55 | Super admin ubah role | Super admin mengubah role user. | Sistem mengembalikan `200 OK` dan role berubah. | Berhasil |
+| 56 | Admin ubah role terbatas | Admin mengubah user menjadi operator, viewer, atau user. | Sistem mengembalikan `200 OK`. | Berhasil |
+| 57 | Admin promote ke admin | Admin mencoba menjadikan user sebagai admin. | Sistem mengembalikan `403 Forbidden`. | Berhasil |
+| 58 | Admin promote ke super admin | Admin mencoba menjadikan user sebagai super_admin. | Sistem mengembalikan `403 Forbidden`. | Berhasil |
+| 59 | Admin ubah role super admin | Admin mencoba mengubah role super_admin. | Sistem mengembalikan `403 Forbidden`. | Berhasil |
+| 60 | Ubah role diri sendiri | Admin mencoba mengubah role dirinya sendiri. | Sistem mengembalikan `400 Bad Request`. | Berhasil |
+| 61 | User biasa ubah role | User biasa mencoba mengubah role user lain. | Sistem mengembalikan `403 Forbidden`. | Berhasil |
+| 62 | Operator ubah role | Operator mencoba mengubah role user lain. | Sistem mengembalikan `403 Forbidden`. | Berhasil |
+| 63 | Role invalid | Request update role memakai value tidak valid. | Sistem mengembalikan `422 Validation Error`. | Berhasil |
+| 64 | User target tidak ditemukan | Super admin mengubah role user ID yang tidak ada. | Sistem mengembalikan `404 Not Found`. | Berhasil |
+| 65 | Register device oleh super admin | Super admin mendaftarkan MAC address device baru. | Sistem mengembalikan `201 Created`. | Berhasil |
+| 66 | Register device oleh admin | Admin biasa mencoba register device. | Sistem mengembalikan `403 Forbidden`. | Berhasil |
+| 67 | Register device oleh user | User biasa mencoba register device. | Sistem mengembalikan `403 Forbidden`. | Berhasil |
+| 68 | Lihat unclaimed device oleh admin | Admin melihat device yang belum diklaim. | Sistem mengembalikan `200 OK`. | Berhasil |
+| 69 | Lihat unclaimed device oleh user | User biasa mencoba melihat unclaimed device. | Sistem mengembalikan `403 Forbidden`. | Berhasil |
+| 70 | Register FCM token | User mendaftarkan FCM token. | Sistem mengembalikan `200 OK` dan `status = success`. | Berhasil |
+| 71 | Register duplicate FCM token | User mendaftarkan token yang sama dua kali. | Sistem tetap mengembalikan `200 OK`. | Berhasil |
+| 72 | Unregister FCM token | User menghapus FCM token. | Sistem mengembalikan `200 OK`. | Berhasil |
+| 73 | Register FCM token tanpa login | Request register FCM token dikirim tanpa token auth. | Sistem mengembalikan `401 Unauthorized`. | Berhasil |
+| 74 | Cleanup logs oleh super admin | Super admin menjalankan cleanup sensor logs. | Sistem mengembalikan `200 OK` dan field `deleted_count`. | Berhasil |
+| 75 | Cleanup logs oleh admin | Admin biasa mencoba cleanup logs. | Sistem mengembalikan `403 Forbidden`. | Berhasil |
+| 76 | Cleanup logs oleh user | User biasa mencoba cleanup logs. | Sistem mengembalikan `403 Forbidden`. | Berhasil |
+| 77 | Cleanup logs tanpa data lama | Super admin menjalankan cleanup saat tidak ada data lama. | Sistem mengembalikan `200 OK` dan `deleted_count = 0`. | Berhasil |
+| 78 | Health check | Client membuka endpoint `/api/health`. | Sistem mengembalikan `200 OK`, `status = healthy`, dan `database_alive = true`. | Berhasil |
+| 79 | Statistik harian default | Admin mengambil statistik harian dengan default `days=7`. | Sistem mengembalikan `200 OK` dan wrapper response lengkap. | Berhasil |
+| 80 | Statistik harian custom days | Admin mengambil statistik dengan `days=30`. | Sistem mengembalikan `200 OK`. | Berhasil |
+| 81 | Struktur response statistik | Response statistik dicek field dan tipe datanya. | Field statistik lengkap dan tipe data sesuai. | Berhasil |
+| 82 | Nilai status statistik | Field `status` pada statistik dicek. | Nilai hanya `Normal`, `Waspada`, atau `Bahaya`. | Berhasil |
+| 83 | Validasi data_points statistik | Statistik yang memiliki data harus punya `data_points > 0`. | Semua `data_points` bernilai positif. | Berhasil |
+| 84 | Validasi min/max suhu | Statistik dicek agar suhu minimum tidak lebih besar dari maksimum. | `min_temperature <= max_temperature`. | Berhasil |
+| 85 | Validasi periode statistik | `period_start` dan `period_end` dicek sesuai parameter `days`. | Periode tanggal sesuai. | Berhasil |
+| 86 | Urutan statistik | Statistik dicek urut berdasarkan tanggal. | Data terurut ascending dari tanggal lama ke baru. | Berhasil |
+| 87 | Statistik `days=1` | Admin mengambil statistik satu hari. | Sistem mengembalikan `200 OK` dan `period_start = period_end`. | Berhasil |
+| 88 | Statistik `days=90` | Admin mengambil statistik batas maksimum 90 hari. | Sistem mengembalikan `200 OK`. | Berhasil |
+| 89 | Statistik `days=0` | Admin mengirim parameter di bawah minimum. | Sistem mengembalikan `422 Validation Error`. | Berhasil |
+| 90 | Statistik `days=91` | Admin mengirim parameter di atas maksimum. | Sistem mengembalikan `422 Validation Error`. | Berhasil |
+| 91 | Statistik `days` negatif | Admin mengirim parameter negatif. | Sistem mengembalikan `422 Validation Error`. | Berhasil |
+| 92 | Statistik `days` bukan angka | Admin mengirim `days=abc`. | Sistem mengembalikan `422 Validation Error`. | Berhasil |
+| 93 | Statistik device tidak ditemukan | Admin mengambil statistik device ID yang tidak ada. | Sistem mengembalikan `404 Not Found`. | Berhasil |
+| 94 | Statistik UUID invalid | Admin mengambil statistik dengan format UUID tidak valid. | Sistem mengembalikan `422 Validation Error`. | Berhasil |
+| 95 | Statistik device unclaimed | Admin mengambil statistik device yang belum diklaim. | Sistem mengembalikan `404 Not Found`. | Berhasil |
+| 96 | Statistik device milik user lain | Admin mengambil statistik device milik admin lain. | Sistem mengembalikan `404 Not Found`. | Berhasil |
+| 97 | Statistik tanpa token | Request statistik dikirim tanpa token. | Sistem mengembalikan `401 Unauthorized`. | Berhasil |
+| 98 | Statistik token invalid | Request statistik memakai token tidak valid. | Sistem mengembalikan `401 Unauthorized`. | Berhasil |
+| 99 | Statistik tanpa sensor log | Device tidak memiliki log sensor. | Sistem mengembalikan `200 OK`, `statistics = []`, dan `total_days = 0`. | Berhasil |
+| 100 | Statistik data di luar range | Sensor log ada tetapi di luar rentang tanggal yang diminta. | Sistem mengembalikan `200 OK`, `statistics = []`, dan `total_days = 0`. | Berhasil |
+| 101 | Buat JWT valid | Sistem membuat token dari payload valid. | Output berupa string token yang tidak kosong. | Berhasil |
+| 102 | Buat JWT custom expiry | Sistem membuat token dengan masa berlaku custom. | Token valid dan payload dapat diverifikasi. | Berhasil |
+| 103 | JWT menyimpan payload | Token dibuat dengan field tambahan. | Payload hasil verify tetap berisi data yang diberikan. | Berhasil |
+| 104 | Verify JWT valid | Sistem memverifikasi token valid. | Payload tidak `None` dan memiliki `sub`, `email`, serta `exp`. | Berhasil |
+| 105 | Verify JWT invalid | Sistem memverifikasi token tidak valid. | Output `None`. | Berhasil |
+| 106 | Verify JWT kosong | Sistem memverifikasi token kosong. | Output `None`. | Berhasil |
+| 107 | Verify JWT malformed | Sistem memverifikasi token rusak. | Output `None`. | Berhasil |
+| 108 | Verify JWT expired | Sistem memverifikasi token yang sudah expired. | Output `None`. | Berhasil |
+
+Catatan:
+
+- Semua test pada tabel di atas berstatus `Berhasil` karena hasil eksekusi terakhir menunjukkan `117 passed`.
+- Jumlah baris tabel tidak selalu sama dengan jumlah total test karena beberapa test yang mirip digabung menjadi satu baris ringkasan agar tabel lebih mudah dibaca untuk laporan.
+- Status `Gagal` digunakan jika output aktual tidak sesuai dengan output yang diharapkan.
+
+---
+
+## 5. Environment Testing
 
 Testing dijalankan menggunakan environment lokal Python dan database SQLite in-memory.
 
@@ -121,7 +244,7 @@ Catatan environment:
 
 ---
 
-## 5. Pendekatan Blackbox Testing
+## 6. Pendekatan Blackbox Testing
 
 Pendekatan yang digunakan adalah menguji endpoint berdasarkan kombinasi:
 
@@ -148,7 +271,7 @@ Contoh pola blackbox:
 
 ---
 
-## 6. Role yang Diuji
+## 7. Role yang Diuji
 
 Project ini memiliki 5 role:
 
@@ -168,7 +291,7 @@ Blackbox testing memastikan setiap role hanya dapat melakukan aksi yang sesuai.
 
 ---
 
-## 7. Detail Skenario Testing
+## 8. Detail Skenario Testing
 
 ### 7.1 Device Claim
 
@@ -747,7 +870,7 @@ Bagian ini lebih dekat ke unit test fungsi security, bukan blackbox API murni. N
 
 ---
 
-## 8. Jenis Kasus Uji yang Tercakup
+## 9. Jenis Kasus Uji yang Tercakup
 
 Testing saat ini mencakup beberapa kategori umum blackbox testing:
 
@@ -765,7 +888,7 @@ Testing saat ini mencakup beberapa kategori umum blackbox testing:
 
 ---
 
-## 9. Status Code yang Diuji
+## 10. Status Code yang Diuji
 
 | Status Code | Arti | Contoh Pengujian |
 |------------:|------|------------------|
@@ -780,7 +903,7 @@ Testing saat ini mencakup beberapa kategori umum blackbox testing:
 
 ---
 
-## 10. Data Uji
+## 11. Data Uji
 
 Data uji dibuat melalui fixture agar setiap test memiliki kondisi awal yang terkontrol.
 
@@ -804,7 +927,7 @@ Setiap test menggunakan database SQLite in-memory dan data dibersihkan setelah t
 
 ---
 
-## 11. Kelebihan Testing Saat Ini
+## 12. Kelebihan Testing Saat Ini
 
 Kelebihan blackbox testing yang sudah ada:
 
@@ -819,7 +942,7 @@ Kelebihan blackbox testing yang sudah ada:
 
 ---
 
-## 12. Keterbatasan Testing Saat Ini
+## 13. Keterbatasan Testing Saat Ini
 
 Beberapa hal yang belum sepenuhnya tercakup:
 
@@ -834,7 +957,7 @@ Beberapa hal yang belum sepenuhnya tercakup:
 
 ---
 
-## 13. Rekomendasi Pengembangan Testing
+## 14. Rekomendasi Pengembangan Testing
 
 Untuk membuat testing lebih lengkap, disarankan menambahkan:
 
@@ -851,7 +974,7 @@ Untuk membuat testing lebih lengkap, disarankan menambahkan:
 
 ---
 
-## 14. Kesimpulan
+## 15. Kesimpulan
 
 Blackbox testing pada project Smart Chicken Box sudah mencakup bagian penting dari backend API. Total terdapat 117 test yang berhasil lulus, dengan fokus pada input/output endpoint, autentikasi, otorisasi role, validasi input, dan response JSON.
 
