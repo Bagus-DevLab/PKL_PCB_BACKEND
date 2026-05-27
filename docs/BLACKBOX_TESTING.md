@@ -923,7 +923,36 @@ Jenis fixture utama:
 | `test_operator_assignment` | Assignment operator ke device |
 | `test_viewer_assignment` | Assignment viewer ke device |
 
-Setiap test menggunakan database SQLite in-memory dan data dibersihkan setelah test selesai, sehingga hasil test tidak bergantung pada urutan eksekusi.
+Sebagian besar unit test menggunakan database SQLite in-memory dan data dibersihkan setelah test selesai, sehingga hasil test tidak bergantung pada urutan eksekusi. Project juga menyediakan fixture PostgreSQL integration test untuk skenario yang perlu divalidasi terhadap database production-like.
+
+### Fixture PostgreSQL Integration Test
+
+Fixture PostgreSQL digunakan untuk menjalankan test yang membutuhkan database PostgreSQL asli. Test ini ditandai dengan marker:
+
+```text
+postgres
+```
+
+Cara menjalankan PostgreSQL test database:
+
+```bash
+docker compose -f docker-compose.test.yml up -d postgres_test
+```
+
+Cara menjalankan integration test PostgreSQL:
+
+```bash
+TEST_DATABASE_URL=postgresql://test:test@localhost:5433/pcb_test \
+.venv/bin/python -m pytest -m postgres
+```
+
+Skenario awal yang sudah tersedia:
+
+| Test | Tujuan |
+|------|--------|
+| Statistik harian PostgreSQL | Memastikan agregasi tanggal, average, min, max, count, dan status berjalan di PostgreSQL |
+| Delete cascade PostgreSQL | Memastikan penghapusan device juga menghapus sensor logs terkait |
+| Claim device PostgreSQL | Memastikan UUID primary key dan proses claim berjalan di PostgreSQL |
 
 ---
 
@@ -950,7 +979,7 @@ Beberapa hal yang belum sepenuhnya tercakup:
 2. Firebase Auth tidak diuji secara end-to-end dengan service asli.
 3. FCM push notification tidak diuji sampai benar-benar terkirim.
 4. WebSocket realtime belum terlihat tercakup dalam test suite saat ini.
-5. Perbedaan perilaku SQLite dan PostgreSQL masih mungkin terjadi.
+5. PostgreSQL integration test baru mencakup skenario awal, belum seluruh endpoint.
 6. Load test, stress test, dan concurrency test belum menjadi bagian dari test suite.
 7. Endpoint login Firebase belum diuji sebagai integrasi real Firebase.
 8. Nginx routing dan Docker production stack tidak diuji oleh pytest ini.
@@ -961,7 +990,7 @@ Beberapa hal yang belum sepenuhnya tercakup:
 
 Untuk membuat testing lebih lengkap, disarankan menambahkan:
 
-1. Integration test PostgreSQL menggunakan container test database.
+1. Perluasan integration test PostgreSQL untuk endpoint dan query lain yang rawan berbeda dari SQLite.
 2. Test WebSocket `/api/ws/devices/{device_id}`.
 3. Test MQTT worker dengan broker test atau mock MQTT client.
 4. Test Firebase login dengan mock Firebase Admin SDK.
