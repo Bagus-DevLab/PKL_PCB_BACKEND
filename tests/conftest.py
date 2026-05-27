@@ -11,6 +11,7 @@ from typing import Generator
 
 # Set env variables SEBELUM import app modules
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+os.environ["TEST_DATABASE_URL"] = "postgresql://test:test@localhost:5433/pcb_test"
 os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only"
 os.environ["ALGORITHM"] = "HS256"
 os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "30"
