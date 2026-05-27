@@ -1,0 +1,18 @@
+services:
+  postgres_test:
+    image: postgres:15
+    container_name: pcb_pkl_postgres_test
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: pcb_test
+    ports:
+      - "127.0.0.1:5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d pcb_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
