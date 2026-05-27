@@ -333,3 +333,112 @@ def test_viewer_assignment(db_session, test_device_claimed, test_viewer, test_ad
     db_session.commit()
     db_session.refresh(assignment)
     return assignment
+
+
+# ==========================================
+# POSTGRESQL INTEGRATION FIXTURES
+# ==========================================
+
+@pytest.fixture(scope="function")
+def postgres_db_session() -> Generator:
+    """
+    Session database PostgreSQL untuk integration test.
+
+    Fixture ini sengaja opsional. Jalankan dengan:
+    TEST_DATABASE_URL=postgresql://test:test@localhost:5433/pcb_test pytest -m postgres
+    """
+    database_url = os.getenv("TEST_DATABASE_URL")
+    if not database_url:
+        pytest.skip("TEST_DATABASE_URL belum diset untuk PostgreSQL integration test")
+
+    pg_engine = create_engine(database_url, pool_pre_ping=True)
+    PgSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=pg_engine)
+
+    Base.metadata.drop_all(bind=pg_engine)
+    Base.metadata.create_all(bind=pg_engine)
+
+    db = PgSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+        Base.metadata.drop_all(bind=pg_engine)
+        pg_engine.dispose()
+
+
+@pytest.fixture(scope="function")
+def postgres_client(postgres_db_session) -> Generator:
+    """FastAPI TestClient yang diarahkan ke PostgreSQL test database."""
+    def override_get_db():
+        try:
+            yield postgres_db_session
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def postgres_super_admin(postgres_db_session) -> User:
+    return _create_user(
+        postgres_db_session,
+        "pg-superadmin@example.com",
+        "Postgres Super Admin",
+        UserRole.SUPER_ADMIN.value,
+    )
+
+
+@pytest.fixture
+def postgres_super_admin_headers(postgres_super_admin) -> dict:
+    return _create_headers(postgres_super_admin)
+
+
+@pytest.fixture
+def postgres_admin_user(postgres_db_session) -> User:
+    return _create_user(
+        postgres_db_session,
+        "pg-admin@example.com",
+        "Postgres Admin",
+        UserRole.ADMIN.value,
+    )
+
+
+@pytest.fixture
+def postgres_admin_headers(postgres_admin_user) -> dict:
+    return _create_headers(postgres_admin_user)
+
+
+@pytest.fixture
+def postgres_device_claimed(postgres_db_session, postgres_admin_user) -> Device:
+    device = Device(
+        id=uuid.uuid4(),
+        mac_address="22:33:44:55:66:77",
+        name="Kandang PostgreSQL",
+        user_id=postgres_admin_user.id,
+        last_heartbeat=datetime.now(timezone.utc),
+    )
+    postgres_db_session.add(device)
+    postgres_db_session.commit()
+    postgres_db_session.refresh(device)
+    return device
+
+
+@pytest.fixture
+def postgres_sensor_logs(postgres_db_session, postgres_device_claimed) -> list:
+    logs = []
+    for i in range(3):
+        log = SensorLog(
+            device_id=postgres_device_claimed.id,
+            temperature=27.0 + i,
+            humidity=70.0 + i,
+            ammonia=8.0 + i,
+            is_alert=False,
+        )
+        postgres_db_session.add(log)
+        logs.append(log)
+
+    postgres_db_session.commit()
+    return logs
