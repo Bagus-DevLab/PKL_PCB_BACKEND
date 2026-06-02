@@ -1,11 +1,11 @@
 # Analisis Metode Blackbox Testing — Smart Chicken Box (PCB)
 
 > Versi: 1.0.0
-> Terakhir diperbarui: 2026-05-27
+> Terakhir diperbarui: 2026-06-02
 > Project: PKL PCB Smart Kandang / Smart Chicken Box
 > Referensi: [BLACKBOX_TESTING.md](BLACKBOX_TESTING.md)
 
-Dokumen ini menganalisis metode blackbox testing formal yang diterapkan pada test suite PCB, beserta contoh test case konkret dari masing-masing metode.
+Dokumen ini menganalisis metode blackbox testing formal yang diterapkan pada test suite PCB, beserta contoh test case konkret dari masing-masing metode. Berdasarkan koleksi terbaru, project memiliki 120 test otomatis: 112 test termasuk blackbox API-level dan 8 test termasuk unit test security.
 
 ---
 

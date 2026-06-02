@@ -26,7 +26,7 @@ docker compose exec backend alembic upgrade head  # run migrations
 cd pcb-landing-page && npm run dev      # Vite dev server on :5173
 
 # Tests
-source .venv/bin/activate && pytest     # 117 test cases, SQLite in-memory
+source .venv/bin/activate && pytest     # 120 collected tests; most use SQLite in-memory
 pytest tests/test_device.py -v          # single file
 pytest -k "test_admin_can"              # pattern match
 

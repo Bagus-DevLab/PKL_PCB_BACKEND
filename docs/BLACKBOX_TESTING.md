@@ -1,7 +1,7 @@
 # Dokumentasi Blackbox Testing — Smart Chicken Box (PCB)
 
 > Versi: 1.0.0  
-> Terakhir diperbarui: 2026-05-27  
+> Terakhir diperbarui: 2026-06-02  
 > Project: PKL PCB Smart Kandang / Smart Chicken Box  
 > Fokus: Pengujian endpoint API, autentikasi, otorisasi, validasi input, dan response sistem
 
@@ -33,7 +33,7 @@ Untuk kebutuhan laporan, pengujian ini dapat disebut sebagai blackbox testing ka
 
 Tujuan blackbox testing pada project ini adalah memastikan backend bekerja sesuai kontrak API dari sudut pandang pengguna/client.
 
-Pengujian mencakup:
+Pengujian blackbox API-level mencakup:
 
 1. Autentikasi JWT.
 2. Otorisasi berdasarkan role.
@@ -46,8 +46,10 @@ Pengujian mencakup:
 9. FCM token register/unregister.
 10. Cleanup sensor logs.
 11. Health check API.
-12. Validasi token security.
-13. Validasi input dan parameter query.
+12. Validasi input dan parameter query.
+13. Validasi integrasi PostgreSQL untuk endpoint/query yang sensitif terhadap perbedaan database.
+
+Selain blackbox API-level, project juga memiliki 8 unit test security untuk fungsi JWT (`create_access_token()` dan `verify_token()`). Test tersebut tetap bagian dari test otomatis backend, tetapi bukan blackbox API murni karena langsung menguji fungsi internal.
 
 ---
 
@@ -60,30 +62,42 @@ tests/
 ├── test_device.py
 ├── test_user.py
 ├── test_stats.py
+├── test_postgres_integration.py
 └── test_security.py
 ```
 
-Jumlah test:
+Jumlah test otomatis:
 
 | File | Jumlah Test | Area Pengujian |
 |------|------------:|----------------|
 | `test_device.py` | 49 | Device endpoint, claim, list, logs, control, alert, assignment, update, delete |
 | `test_user.py` | 37 | User endpoint, role hierarchy, admin access, FCM token, cleanup logs, health check |
 | `test_stats.py` | 23 | Statistik harian sensor, validasi parameter, akses device, data kosong |
-| `test_security.py` | 8 | Pembuatan dan verifikasi JWT |
-| **Total** | **117** | Backend API dan security |
+| `test_postgres_integration.py` | 3 | Blackbox API integration dengan PostgreSQL test database |
+| `test_security.py` | 8 | Unit test pembuatan dan verifikasi JWT |
+| **Total test otomatis** | **120** | Backend API, PostgreSQL integration, dan security |
 
-Hasil eksekusi terakhir:
+Klasifikasi untuk laporan blackbox:
+
+| Klasifikasi | Jumlah Test | Keterangan |
+|-------------|------------:|------------|
+| Blackbox API-level | 109 | Test endpoint menggunakan `FastAPI TestClient` dengan SQLite in-memory |
+| Blackbox API integration | 3 | Test endpoint menggunakan PostgreSQL test database |
+| Unit test security | 8 | Test fungsi JWT secara langsung, bukan endpoint API |
+| **Total blackbox API-level** | **112** | 109 API test + 3 PostgreSQL integration test |
+| **Total test otomatis** | **120** | 112 blackbox API-level + 8 unit test security |
+
+Hasil koleksi test terakhir:
 
 ```text
-117 passed in 1.92s
+120 tests collected
 ```
 
 ---
 
 ## 4. Tabel Ringkasan Hasil Blackbox Testing
 
-Tabel berikut merangkum fitur yang diuji, penjelasan pengujian, output yang diharapkan, dan hasil aktual berdasarkan eksekusi unit testing terakhir.
+Tabel berikut merangkum fitur yang diuji, penjelasan pengujian, output yang diharapkan, dan hasil aktual berdasarkan eksekusi testing terakhir. Baris ringkasan tidak selalu satu banding satu dengan fungsi test karena beberapa skenario serupa digabung agar mudah dibaca untuk laporan.
 
 | No | Test yang Diuji | Penjelasan | Output yang Diharapkan | Hasil |
 |---:|-----------------|------------|------------------------|-------|
@@ -195,10 +209,13 @@ Tabel berikut merangkum fitur yang diuji, penjelasan pengujian, output yang diha
 | 106 | Verify JWT kosong | Sistem memverifikasi token kosong. | Output `None`. | Berhasil |
 | 107 | Verify JWT malformed | Sistem memverifikasi token rusak. | Output `None`. | Berhasil |
 | 108 | Verify JWT expired | Sistem memverifikasi token yang sudah expired. | Output `None`. | Berhasil |
+| 109 | Statistik harian PostgreSQL | Endpoint statistik harian diuji dengan PostgreSQL test database. | Sistem mengembalikan `200 OK`, agregasi tanggal dan nilai statistik valid. | Berhasil |
+| 110 | Delete cascade PostgreSQL | Super admin menghapus device yang memiliki sensor logs di PostgreSQL. | Device terhapus dan sensor logs terkait ikut terhapus. | Berhasil |
+| 111 | Claim device PostgreSQL | Admin mengklaim device dengan UUID primary key di PostgreSQL. | Sistem mengembalikan `200 OK`, `id`, `user_id`, dan nama device sesuai. | Berhasil |
 
 Catatan:
 
-- Semua test pada tabel di atas berstatus `Berhasil` karena hasil eksekusi terakhir menunjukkan `117 passed`.
+- Semua test pada tabel di atas berstatus `Berhasil` berdasarkan hasil dokumentasi eksekusi terakhir. Koleksi terbaru menunjukkan ada 120 test otomatis: 112 blackbox API-level dan 8 unit test security.
 - Jumlah baris tabel tidak selalu sama dengan jumlah total test karena beberapa test yang mirip digabung menjadi satu baris ringkasan agar tabel lebih mudah dibaca untuk laporan.
 - Status `Gagal` digunakan jika output aktual tidak sesuai dengan output yang diharapkan.
 
@@ -219,27 +236,22 @@ Konfigurasi utama:
 | Auth test | JWT lokal |
 | External service | Firebase dan MQTT tidak benar-benar dipanggil secara end-to-end |
 
-Command yang digunakan:
+Command koleksi yang digunakan:
 
 ```bash
-.venv/bin/python -m pytest -q
+.venv/bin/python -m pytest --collect-only -q
 ```
 
-Output hasil testing:
+Output hasil koleksi:
 
 ```text
-tests/test_device.py .................................................   [ 41%]
-tests/test_security.py ........                                          [ 48%]
-tests/test_stats.py .......................                              [ 68%]
-tests/test_user.py .....................................                 [100%]
-
-117 passed in 1.92s
+120 tests collected
 ```
 
 Catatan environment:
 
 - Di sandbox terbatas, `FastAPI TestClient` dapat menggantung karena pembatasan threading/event loop.
-- Saat dijalankan di luar sandbox, seluruh test lulus.
+- Dokumentasi eksekusi sebelumnya menunjukkan seluruh test non-PostgreSQL lulus. Koleksi terbaru menambahkan 3 test PostgreSQL integration sehingga total test otomatis menjadi 120.
 - Ada warning non-fatal dari `pytest-asyncio` tentang `asyncio_default_fixture_loop_scope`.
 
 ---
@@ -1013,15 +1025,16 @@ Untuk membuat testing lebih lengkap, disarankan menambahkan:
 
 ## 16. Kesimpulan
 
-Blackbox testing pada project Smart Chicken Box sudah mencakup bagian penting dari backend API. Total terdapat 117 test yang berhasil lulus, dengan fokus pada input/output endpoint, autentikasi, otorisasi role, validasi input, dan response JSON.
+Blackbox testing pada project Smart Chicken Box sudah mencakup bagian penting dari backend API. Berdasarkan koleksi terbaru, terdapat 120 test otomatis. Dari jumlah tersebut, 112 test termasuk blackbox API-level karena menguji endpoint berdasarkan input request dan output response, sedangkan 8 test lainnya adalah unit test security untuk fungsi JWT.
 
 Secara praktis, test suite ini sudah cukup kuat untuk memastikan fitur utama backend tidak rusak saat ada perubahan kode. Untuk kualitas production yang lebih tinggi, coverage perlu diperluas ke integrasi PostgreSQL, MQTT, WebSocket, Firebase, dan FCM.
 
 Ringkasan hasil:
 
 ```text
-Total test: 117
-Status: Passed
-Command: .venv/bin/python -m pytest -q
-Hasil: 117 passed in 1.92s
+Total test otomatis: 120
+Total blackbox API-level: 112
+Total unit test security: 8
+Status koleksi: 120 tests collected
+Command: .venv/bin/python -m pytest --collect-only -q
 ```

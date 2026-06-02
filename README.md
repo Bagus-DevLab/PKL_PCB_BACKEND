@@ -6,7 +6,7 @@
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 ![MQTT](https://img.shields.io/badge/MQTT-Mosquitto_2-3C5280?style=for-the-badge&logo=eclipse-mosquitto&logoColor=white)
 ![Firebase](https://img.shields.io/badge/Firebase-Auth_+_FCM-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)
-![Tests](https://img.shields.io/badge/Tests-117_Passed-2ea44f?style=for-the-badge)
+![Tests](https://img.shields.io/badge/Tests-120_Collected-2ea44f?style=for-the-badge)
 
 A production-hardened IoT backend for monitoring and controlling smart chicken coops. Built with FastAPI, PostgreSQL, MQTT, and WebSockets &mdash; engineered for resource-constrained VPS deployments (2 GB RAM, 2 cores).
 
@@ -62,7 +62,7 @@ Powers real-time sensor telemetry from ESP32 microcontrollers, a 5-tier role-bas
 | **Infrastructure** | Docker, Docker Compose, Supervisord, Nginx |
 | **Rate Limiting** | slowapi (per-endpoint, configurable) |
 | **CI/CD** | GitHub Actions &rarr; SCP &rarr; VPS auto-deploy |
-| **Testing** | pytest &mdash; 117 test cases, SQLite in-memory |
+| **Testing** | pytest &mdash; 120 collected test cases, SQLite in-memory + PostgreSQL integration marker |
 
 ---
 
@@ -279,7 +279,7 @@ pkl-pcb/
 │   └── main.py                       #   App init, lifespan, middleware, exception handlers
 ├── pcb-landing-page/                 # React frontend (landing + admin dashboard)
 ├── alembic/                          # Database migrations (6 versions)
-├── tests/                            # pytest suite — 117 test cases
+├── tests/                            # pytest suite — 120 collected test cases
 │   ├── conftest.py                   #   Fixtures, SQLite in-memory DB, test users
 │   ├── test_device.py                #   49 tests — CRUD, claims, assignments, control
 │   ├── test_security.py              #   8 tests — JWT creation, verification, expiry
@@ -304,7 +304,7 @@ pkl-pcb/
 
 ```bash
 source .venv/bin/activate
-pytest -v                          # all 117 tests
+pytest -v                          # all tests
 pytest tests/test_device.py -v     # device endpoints
 pytest -k "test_admin_can" -v      # pattern match
 ```

@@ -1,7 +1,7 @@
 # SESSION_HANDOFF.md
 
 Handoff document for AI agents continuing work on this project.
-Last updated: 2026-05-17 | Session: Documentation consistency pass
+Last updated: 2026-06-02 | Session: Blackbox test count documentation update
 
 ---
 
@@ -37,7 +37,7 @@ super_admin > admin > operator > viewer > user
 
 | Metric | Value |
 |--------|-------|
-| Backend tests | **117 collected** via `pytest --collect-only -q` |
+| Backend tests | **120 collected** via `.venv/bin/python -m pytest --collect-only -q` |
 | Docker Python runtime | **Python 3.11** (`python:3.11-slim`) |
 | Local test Python observed | **Python 3.12.3** |
 | Frontend | React 19 + Vite 7 |
