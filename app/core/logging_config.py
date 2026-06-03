@@ -9,6 +9,27 @@ LOG_DIR = "logs"
 LOG_FILENAME = "backend.log"
 LOG_FORMAT = "%(asctime)s - %(levelname)s - [%(name)s] - [%(request_id)s] - %(message)s"
 
+
+class SafeRotatingFileHandler(RotatingFileHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._disabled_after_error = False
+
+    def emit(self, record):
+        if self._disabled_after_error:
+            return
+        super().emit(record)
+
+    def handleError(self, record):
+        exc_type, exc, _ = sys.exc_info()
+        if exc_type and issubclass(exc_type, PermissionError):
+            self._disabled_after_error = True
+            self.close()
+            print(f"Warning: File logging disabled after permission error: {exc}", file=sys.stderr)
+            return
+        super().handleError(record)
+
+
 def setup_logging():
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
@@ -23,12 +44,12 @@ def setup_logging():
     try:
         if not os.path.exists(LOG_DIR):
             os.makedirs(LOG_DIR, exist_ok=True)
-            
-        file_handler = RotatingFileHandler(filepath, maxBytes=5*1024*1024, backupCount=3)
+
+        file_handler = SafeRotatingFileHandler(filepath, maxBytes=5*1024*1024, backupCount=3)
         file_handler.setFormatter(logging.Formatter(LOG_FORMAT, defaults={"request_id": "SYSTEM"}))
         file_handler.addFilter(request_id_filter)
         logger.addHandler(file_handler)
-        
+
     except PermissionError:
         print(f"Warning: Permission denied to write to {filepath}. File logging is disabled.")
     except Exception as e:

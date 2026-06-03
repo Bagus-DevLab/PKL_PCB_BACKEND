@@ -92,6 +92,12 @@ jobs:
             echo "Building Docker images..."
             docker compose -f docker-compose.yml -f docker-compose.prod.yml build
 
+            # Pastikan volume logs di host bisa ditulis dan dirotasi oleh appuser di container.
+            APP_UID=$(docker run --rm api-pcb-backend id -u appuser)
+            APP_GID=$(docker run --rm api-pcb-backend id -g appuser)
+            chown -R "$APP_UID:$APP_GID" logs
+            chmod -R u+rwX,g+rwX,o-rwx logs
+
             # ==========================================
             # 4. START INFRASTRUCTURE (postgres + mosquitto dulu)
             # ==========================================
