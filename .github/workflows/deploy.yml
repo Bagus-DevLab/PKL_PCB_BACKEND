@@ -22,6 +22,19 @@ jobs:
           # scp-action runs in a container with a different UID; it must be able to read this file.
           chmod 0644 .env.production
 
+      - name: Buat file Firebase Admin dari secret
+        env:
+          FIREBASE_ADMINSDK_JSON: ${{ secrets.FIREBASE_ADMINSDK_JSON }}
+        run: |
+          if [ -z "$FIREBASE_ADMINSDK_JSON" ]; then
+            echo "::error::Tambahkan GitHub Actions secret FIREBASE_ADMINSDK_JSON berisi JSON Firebase Admin SDK."
+            exit 1
+          fi
+          printf '%s' "$FIREBASE_ADMINSDK_JSON" > firebase-adminsdk.json
+          python3 -c 'import json; json.load(open("firebase-adminsdk.json"))'
+          # scp-action runs in a container with a different UID; restrict it again on the VPS.
+          chmod 0644 firebase-adminsdk.json
+
       # Pulihkan ownership direktori konfigurasi agar SCP dapat memperbarui file pada deploy berikutnya.
       - name: Siapkan direktori project di VPS
         uses: appleboy/ssh-action@v1.0.3
@@ -32,6 +45,12 @@ jobs:
           script: |
             set -e
             mkdir -p /opt/api-pcb/mosquitto/config
+            if [ -d /opt/api-pcb/firebase-adminsdk.json ]; then
+              rmdir /opt/api-pcb/firebase-adminsdk.json || {
+                echo "ERROR: /opt/api-pcb/firebase-adminsdk.json adalah direktori dan tidak kosong; periksa manual."
+                exit 1
+              }
+            fi
             DEPLOY_UID=$(id -u)
             DEPLOY_GID=$(id -g)
             docker run --rm --user 0:0 \
@@ -48,7 +67,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: ".,!.git,!.venv,!node_modules,!pcb-landing-page/node_modules,!__pycache__,!.env.production,!mosquitto/data,!mosquitto/log,!mosquitto/config/passwd"
+          source: ".,!.git,!.venv,!node_modules,!pcb-landing-page/node_modules,!__pycache__,!.env.production,!firebase-adminsdk.json,!mosquitto/data,!mosquitto/log,!mosquitto/config/passwd"
           target: "/opt/api-pcb"
 
       # Step 3: Copy .env secara terpisah
@@ -59,6 +78,15 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           source: ".env.production"
+          target: "/opt/api-pcb"
+
+      - name: Copy Firebase Admin credential ke VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "firebase-adminsdk.json"
           target: "/opt/api-pcb"
 
       # Step 4: Deploy di VPS
@@ -72,6 +100,7 @@ jobs:
             set -e
             cd /opt/api-pcb
             chmod 0600 .env.production
+            chmod 0600 firebase-adminsdk.json
 
             # ==========================================
             # 1. SETUP ENVIRONMENT
@@ -130,7 +159,7 @@ jobs:
               --entrypoint /bin/sh \
               -v /opt/api-pcb:/deploy \
               eclipse-mosquitto:2 \
-              -c 'chown -R "$1:$2" /deploy/logs && chmod -R u+rwX,g+rwX,o-rwx /deploy/logs' \
+              -c 'chown -R "$1:$2" /deploy/logs && chmod -R u+rwX,g+rwX,o-rwx /deploy/logs && chown "$1:$2" /deploy/firebase-adminsdk.json && chmod 0400 /deploy/firebase-adminsdk.json' \
               sh "$APP_UID" "$APP_GID"
 
             # ==========================================
