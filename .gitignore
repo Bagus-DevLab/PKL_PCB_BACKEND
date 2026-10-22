@@ -102,3 +102,7 @@ dist/
 
 
 bruno-collection/
+01-Tabel-Lengkap-120-Blackbox.xlsx
+docs/bukti-blackbox-testing.html
+docs/PANDUAN_BUKTI_BLACKBOX.md
+docs/pytest-collect-120.txt
