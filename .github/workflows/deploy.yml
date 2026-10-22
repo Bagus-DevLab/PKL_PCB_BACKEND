@@ -14,7 +14,11 @@ jobs:
 
       # Step 1: Buat file .env secara lokal di runner
       - name: Buat file .env dari secret
-        run: printf '%s' "${{ secrets.ENV_FILE }}" | tr -d '\r' > .env.production
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+        run: |
+          umask 077
+          printf '%s' "$ENV_FILE" | tr -d '\r' > .env.production
 
       # Step 2: Copy semua file project ke VPS via SCP
       - name: Copy file ke VPS via SCP
