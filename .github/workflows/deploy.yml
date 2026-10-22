@@ -71,18 +71,23 @@ jobs:
               -v /opt/api-pcb/mosquitto:/mosquitto \
               eclipse-mosquitto:2 -R 1883:1883 /mosquitto
 
+            # Mosquitto mensyaratkan password file dimiliki root dan bermode 0700.
+            docker run --rm --user 0:0 \
+              --entrypoint sh \
+              -v /opt/api-pcb/mosquitto:/mosquitto \
+              eclipse-mosquitto:2 \
+              -c 'chown root:root /mosquitto/config/passwd && chmod 0700 /mosquitto/config/passwd /mosquitto/log/mosquitto.log'
+
             # Setup MQTT credentials
             M_USER=$(grep MQTT_USERNAME .env | cut -d '=' -f2 | tr -d '\r')
             M_PASS=$(grep MQTT_PASSWORD .env | cut -d '=' -f2 | tr -d '\r')
 
             if [ -n "$M_USER" ] && [ -n "$M_PASS" ]; then
-              docker run --rm -u root \
+              docker run --rm --user 0:0 \
+                --entrypoint mosquitto_passwd \
                 -v /opt/api-pcb/mosquitto/config:/mosquitto/config \
-                eclipse-mosquitto mosquitto_passwd -b /mosquitto/config/passwd "$M_USER" "$M_PASS"
+                eclipse-mosquitto:2 -b /mosquitto/config/passwd "$M_USER" "$M_PASS"
             fi
-
-            chmod 0700 mosquitto/log/mosquitto.log
-            [ -f mosquitto/config/passwd ] && chmod 0700 mosquitto/config/passwd
 
             # ==========================================
             # 2. BACKUP DATABASE (sebelum perubahan apapun)
