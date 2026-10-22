@@ -22,6 +22,25 @@ jobs:
           # scp-action runs in a container with a different UID; it must be able to read this file.
           chmod 0644 .env.production
 
+      # Pulihkan ownership direktori konfigurasi agar SCP dapat memperbarui file pada deploy berikutnya.
+      - name: Siapkan direktori project di VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            mkdir -p /opt/api-pcb/mosquitto/config
+            DEPLOY_UID=$(id -u)
+            DEPLOY_GID=$(id -g)
+            docker run --rm --user 0:0 \
+              --entrypoint /bin/sh \
+              -v /opt/api-pcb/mosquitto:/mosquitto \
+              eclipse-mosquitto:2 \
+              -c 'chown "$1:$2" /mosquitto /mosquitto/config; if [ -e /mosquitto/config/mosquitto.conf ]; then chown "$1:$2" /mosquitto/config/mosquitto.conf; fi' \
+              sh "$DEPLOY_UID" "$DEPLOY_GID"
+
       # Step 2: Copy semua file project ke VPS via SCP
       - name: Copy file ke VPS via SCP
         uses: appleboy/scp-action@v0.1.7
@@ -29,7 +48,7 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: ".,!.git,!.venv,!node_modules,!pcb-landing-page/node_modules,!__pycache__,!.env.production"
+          source: ".,!.git,!.venv,!node_modules,!pcb-landing-page/node_modules,!__pycache__,!.env.production,!mosquitto/data,!mosquitto/log,!mosquitto/config/passwd"
           target: "/opt/api-pcb"
 
       # Step 3: Copy .env secara terpisah
@@ -60,16 +79,15 @@ jobs:
             mv -f .env.production .env
 
             mkdir -p mosquitto/log mosquitto/data mosquitto/config logs backups
-            chmod 755 logs
-            touch mosquitto/log/mosquitto.log
+            [ -e mosquitto/log/mosquitto.log ] || touch mosquitto/log/mosquitto.log
 
             # Pre-create passwd file sebelum mengatur ownership untuk user Mosquitto (UID 1883).
-            touch mosquitto/config/passwd
-            # SSH user tidak punya hak chown di host; Docker root mengatur ownership bind mount.
+            [ -e mosquitto/config/passwd ] || touch mosquitto/config/passwd
+            # Hanya data dan log yang perlu ditulis oleh proses Mosquitto (UID 1883).
             docker run --rm --user 0:0 \
               --entrypoint chown \
               -v /opt/api-pcb/mosquitto:/mosquitto \
-              eclipse-mosquitto:2 -R 1883:1883 /mosquitto
+              eclipse-mosquitto:2 -R 1883:1883 /mosquitto/data /mosquitto/log
 
             # Mosquitto mensyaratkan password file dimiliki root dan bermode 0700.
             docker run --rm --user 0:0 \
@@ -111,8 +129,12 @@ jobs:
             # Pastikan volume logs di host bisa ditulis dan dirotasi oleh appuser di container.
             APP_UID=$(docker run --rm api-pcb-backend id -u appuser)
             APP_GID=$(docker run --rm api-pcb-backend id -g appuser)
-            chown -R "$APP_UID:$APP_GID" logs
-            chmod -R u+rwX,g+rwX,o-rwx logs
+            docker run --rm --user 0:0 \
+              --entrypoint /bin/sh \
+              -v /opt/api-pcb:/deploy \
+              eclipse-mosquitto:2 \
+              -c 'chown -R "$1:$2" /deploy/logs && chmod -R u+rwX,g+rwX,o-rwx /deploy/logs' \
+              sh "$APP_UID" "$APP_GID"
 
             # ==========================================
             # 4. START INFRASTRUCTURE (postgres + mosquitto dulu)
