@@ -19,6 +19,8 @@ jobs:
         run: |
           umask 077
           printf '%s' "$ENV_FILE" | tr -d '\r' > .env.production
+          # scp-action runs in a container with a different UID; it must be able to read this file.
+          chmod 0644 .env.production
 
       # Step 2: Copy semua file project ke VPS via SCP
       - name: Copy file ke VPS via SCP
@@ -50,6 +52,7 @@ jobs:
           script: |
             set -e
             cd /opt/api-pcb
+            chmod 0600 .env.production
 
             # ==========================================
             # 1. SETUP ENVIRONMENT
