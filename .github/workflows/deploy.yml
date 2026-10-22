@@ -63,9 +63,13 @@ jobs:
             chmod 755 logs
             touch mosquitto/log/mosquitto.log
 
-            # Pre-create passwd file dan set ownership SEBELUM docker run
+            # Pre-create passwd file sebelum mengatur ownership untuk user Mosquitto (UID 1883).
             touch mosquitto/config/passwd
-            chown -R 1883:1883 mosquitto
+            # SSH user tidak punya hak chown di host; Docker root mengatur ownership bind mount.
+            docker run --rm --user 0:0 \
+              --entrypoint chown \
+              -v /opt/api-pcb/mosquitto:/mosquitto \
+              eclipse-mosquitto:2 -R 1883:1883 /mosquitto
 
             # Setup MQTT credentials
             M_USER=$(grep MQTT_USERNAME .env | cut -d '=' -f2 | tr -d '\r')
