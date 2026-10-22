@@ -79,10 +79,6 @@ jobs:
             mv -f .env.production .env
 
             mkdir -p mosquitto/log mosquitto/data mosquitto/config logs backups
-            [ -e mosquitto/log/mosquitto.log ] || touch mosquitto/log/mosquitto.log
-
-            # Pre-create passwd file sebelum mengatur ownership untuk user Mosquitto (UID 1883).
-            [ -e mosquitto/config/passwd ] || touch mosquitto/config/passwd
             # Hanya data dan log yang perlu ditulis oleh proses Mosquitto (UID 1883).
             docker run --rm --user 0:0 \
               --entrypoint chown \
@@ -94,7 +90,7 @@ jobs:
               --entrypoint sh \
               -v /opt/api-pcb/mosquitto:/mosquitto \
               eclipse-mosquitto:2 \
-              -c 'chown root:root /mosquitto/config/passwd && chmod 0700 /mosquitto/config/passwd /mosquitto/log/mosquitto.log'
+              -c 'touch /mosquitto/config/passwd /mosquitto/log/mosquitto.log && chown root:root /mosquitto/config/passwd && chown 1883:1883 /mosquitto/log/mosquitto.log && chmod 0700 /mosquitto/config/passwd /mosquitto/log/mosquitto.log'
 
             # Setup MQTT credentials
             M_USER=$(grep MQTT_USERNAME .env | cut -d '=' -f2 | tr -d '\r')
