@@ -85,12 +85,12 @@ jobs:
               -v /opt/api-pcb/mosquitto:/mosquitto \
               eclipse-mosquitto:2 -R 1883:1883 /mosquitto/data /mosquitto/log
 
-            # Mosquitto mensyaratkan password file dimiliki root dan bermode 0700.
+            # Broker berjalan sebagai UID 1883, jadi password file harus dapat dibaca UID tersebut.
             docker run --rm --user 0:0 \
               --entrypoint sh \
               -v /opt/api-pcb/mosquitto:/mosquitto \
               eclipse-mosquitto:2 \
-              -c 'touch /mosquitto/config/passwd /mosquitto/log/mosquitto.log && chown root:root /mosquitto/config/passwd && chown 1883:1883 /mosquitto/log/mosquitto.log && chmod 0700 /mosquitto/config/passwd /mosquitto/log/mosquitto.log'
+              -c 'touch /mosquitto/config/passwd /mosquitto/log/mosquitto.log && chown 1883:1883 /mosquitto/config/passwd /mosquitto/log/mosquitto.log && chmod 0600 /mosquitto/config/passwd /mosquitto/log/mosquitto.log'
 
             # Setup MQTT credentials
             M_USER=$(grep MQTT_USERNAME .env | cut -d '=' -f2 | tr -d '\r')
@@ -102,6 +102,13 @@ jobs:
                 -v /opt/api-pcb/mosquitto/config:/mosquitto/config \
                 eclipse-mosquitto:2 -b /mosquitto/config/passwd "$M_USER" "$M_PASS"
             fi
+
+            # mosquitto_passwd berjalan sebagai root; kembalikan akses file ke user broker.
+            docker run --rm --user 0:0 \
+              --entrypoint sh \
+              -v /opt/api-pcb/mosquitto:/mosquitto \
+              eclipse-mosquitto:2 \
+              -c 'chown 1883:1883 /mosquitto/config/passwd /mosquitto/log/mosquitto.log && chmod 0600 /mosquitto/config/passwd /mosquitto/log/mosquitto.log'
 
             # ==========================================
             # 2. BACKUP DATABASE (sebelum perubahan apapun)
@@ -176,7 +183,13 @@ jobs:
             # 6. START SEMUA SERVICES (backend + mqtt_worker)
             # ==========================================
             echo "Starting all services..."
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+            if ! docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d; then
+              echo "=== Mosquitto Logs ==="
+              docker logs pcb_pkl_mosquitto --tail 80 || true
+              echo "=== Mosquitto Healthcheck ==="
+              docker inspect --format '{{range .State.Health.Log}}{{println .ExitCode .Output}}{{end}}' pcb_pkl_mosquitto || true
+              exit 1
+            fi
 
             # ==========================================
             # 7. TUNGGU BACKEND HEALTHY (max 60 detik)
