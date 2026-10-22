@@ -1,71 +1,56 @@
 name: Deploy PKL-PCB to VPS
 
-# Simpan file ini di: .github/workflows/deploy.yml
-#
-# Secrets yang dibutuhkan (Settings -> Secrets and variables -> Actions):
-#   VPS_HOST               IP VPS
-#   VPS_USERNAME           ubuntu
-#   VPS_SSH_KEY            isi private key github-actions-pkl-pcb
-#   ENV_FILE               isi lengkap file .env production
-#   FIREBASE_ADMINSDK_JSON isi lengkap file firebase-adminsdk.json
-
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
-
-# Satu deploy dalam satu waktu (deploy baru menunggu yang lama selesai)
-concurrency:
-  group: deploy-production
-  cancel-in-progress: false
-
-permissions:
-  contents: read
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
     steps:
-      - name: Checkout kode
+      - name: Checkout Kode
         uses: actions/checkout@v4
 
-      # Secret dibaca lewat env, BUKAN di-interpolasi ke dalam script.
-      # Dengan begitu karakter khusus (backtick, $, kutip) di isi secret tidak merusak bash.
-      - name: Buat .env dan firebase-adminsdk.json dari secret
-        env:
-          ENV_FILE: ${{ secrets.ENV_FILE }}
-          FIREBASE_JSON: ${{ secrets.FIREBASE_ADMINSDK_JSON }}
-        run: |
-          printf '%s\n' "$ENV_FILE" | tr -d '\r' > .env.production
-          printf '%s\n' "$FIREBASE_JSON" > firebase-adminsdk.json
+      - name: Siapkan folder di VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            sudo mkdir -p /opt/api-pcb
+            sudo chown "$(id -un):$(id -gn)" /opt/api-pcb
+            if [ -d /opt/api-pcb/mosquitto/config ]; then
+              sudo chown -R "$(id -un):$(id -gn)" /opt/api-pcb/mosquitto/config
+            fi
 
-          [ -s .env.production ] || { echo "ERROR: secret ENV_FILE kosong"; exit 1; }
-          python3 -c 'import json; json.load(open("firebase-adminsdk.json"))' \
-            || { echo "ERROR: FIREBASE_ADMINSDK_JSON bukan JSON yang valid"; exit 1; }
+      # Step 1: Buat file .env secara lokal di runner
+      - name: Buat file .env dari secret
+        run: printf '%s' "${{ secrets.ENV_FILE }}" | tr -d '\r' > .env.production
 
-          chmod 600 .env.production firebase-adminsdk.json
+      # Step 2: Copy semua file project ke VPS via SCP
+      - name: Copy file ke VPS via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: ".,!.git,!.venv,!node_modules,!pcb-landing-page/node_modules,!__pycache__"
+          target: "/opt/api-pcb"
 
-      # Satu arsip lebih cepat dan lebih konsisten daripada menyalin ribuan file satu per satu.
-      - name: Kemas project menjadi satu arsip
-        run: |
-          tar -czf deploy.tar.gz \
-            --exclude=./deploy.tar.gz \
-            --exclude=./.git \
-            --exclude=./.github \
-            --exclude=./.venv \
-            --exclude=./logs \
-            --exclude=./backups \
-            --exclude=./mosquitto/data \
-            --exclude=./mosquitto/log \
-            --exclude='node_modules' \
-            --exclude='__pycache__' \
-            .
-          ls -lh deploy.tar.gz
+      # Step 3: Copy .env secara terpisah
+      - name: Copy .env ke VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: ".env.production"
+          target: "/opt/api-pcb"
 
-      # Cek prasyarat dan siapkan folder SEBELUM upload.
-      - name: Siapkan VPS
+      # Step 4: Deploy di VPS
+      - name: Deploy Docker di VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -73,215 +58,143 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             set -e
-
-            sudo -n true 2>/dev/null || { echo "ERROR: user $(id -un) butuh sudo tanpa password"; exit 1; }
-            docker info >/dev/null 2>&1 || { echo "ERROR: user $(id -un) tidak bisa mengakses Docker"; exit 1; }
-
-            if ! docker volume inspect api-pcb_postgres_data >/dev/null 2>&1; then
-              echo "ERROR: volume api-pcb_postgres_data belum ada."
-              echo "Jalankan SEKALI di VPS: docker volume create api-pcb_postgres_data"
-              echo "(atau restore dari dump database lama). Dibuat manual agar tidak sengaja membuat database kosong."
-              exit 1
-            fi
-
-            sudo mkdir -p /opt/api-pcb
-            sudo chown "$(id -un):$(id -gn)" /opt/api-pcb
-
-            # Jika deploy sebelumnya membuat FOLDER bernama firebase-adminsdk.json, hapus
-            if [ -d /opt/api-pcb/firebase-adminsdk.json ]; then
-              sudo rm -rf /opt/api-pcb/firebase-adminsdk.json
-            fi
-
-            # Container Mosquitto mengubah pemilik folder config ke uid 1883.
-            # Kembalikan ke user deploy supaya mosquitto.conf bisa ditimpa.
-            if [ -d /opt/api-pcb/mosquitto/config ]; then
-              sudo chown -R "$(id -un):$(id -gn)" /opt/api-pcb/mosquitto/config
-            fi
-
-      - name: Upload arsip ke VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          source: "deploy.tar.gz"
-          target: "/tmp"
-
-      - name: Deploy Docker di VPS
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          command_timeout: 30m
-          script: |
-            set -Eeo pipefail
-
-            APP_DIR=/opt/api-pcb
-            export COMPOSE_PROJECT_NAME=api-pcb
-            # Nama image backend hasil build. Ubah jika di docker-compose.yml kamu menambah "image:".
-            BACKEND_IMAGE="${COMPOSE_PROJECT_NAME}-backend"
-            COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
-
-            # ---------- fungsi bantu ----------
-            dump_state() {
-              echo "=== STATUS CONTAINER ==="
-              $COMPOSE ps || true
-              for c in pcb_pkl_postgres pcb_pkl_mosquitto pcb_pkl_backend pcb_pkl_mqtt_worker; do
-                echo "--- log terakhir: $c ---"
-                docker logs --tail 30 "$c" 2>&1 || true
-              done
-            }
-
-            fail() {
-              echo "ERROR: $1"
-              dump_state
-              exit 1
-            }
-
-            trap 'echo "Deploy GAGAL (baris $LINENO)"; dump_state' ERR
-
-            # Baca satu variabel dari .env (aman untuk nilai yang mengandung "=")
-            env_get() {
-              grep -m1 "^$1=" .env | cut -d '=' -f2- | tr -d '\r' | sed -e 's/^"//' -e 's/"$//' || true
-            }
-
-            wait_healthy() {
-              local name="$1" max="$2" waited=0 status
-              while [ "$waited" -lt "$max" ]; do
-                status=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$name" 2>/dev/null || echo "missing")
-                if [ "$status" = "healthy" ]; then
-                  echo "$name healthy"
-                  return 0
-                fi
-                sleep 5
-                waited=$((waited + 5))
-                echo "Menunggu $name ($status)... ${waited}s"
-              done
-              return 1
-            }
+            cd /opt/api-pcb
 
             # ==========================================
-            # 1. EKSTRAK KODE & SETUP ENVIRONMENT
+            # 1. SETUP ENVIRONMENT
             # ==========================================
-            cd "$APP_DIR"
-            tar -xzf /tmp/deploy.tar.gz -C "$APP_DIR"
-            rm -f /tmp/deploy.tar.gz
-
             mv -f .env.production .env
-            chmod 600 .env
 
-            mkdir -p mosquitto/config mosquitto/data mosquitto/log logs backups
-
-            # ==========================================
-            # 2. MOSQUITTO: BUAT PASSWORD FILE DARI .env
-            # ==========================================
-            M_USER=$(env_get MQTT_USERNAME)
-            M_PASS=$(env_get MQTT_PASSWORD)
-            if [ -z "$M_USER" ] || [ -z "$M_PASS" ]; then
-              fail "MQTT_USERNAME / MQTT_PASSWORD kosong di secret ENV_FILE"
-            fi
-
-            # Kredensial dikirim lewat environment, bukan argumen command line
-            docker run --rm -u root \
-              -e M_USER="$M_USER" -e M_PASS="$M_PASS" \
-              -v "$APP_DIR/mosquitto/config:/mosquitto/config" \
-              eclipse-mosquitto:2 \
-              sh -c 'mosquitto_passwd -c -b /mosquitto/config/passwd "$M_USER" "$M_PASS"'
-
+            mkdir -p mosquitto/log mosquitto/data mosquitto/config logs backups
+            chmod 755 logs
             touch mosquitto/log/mosquitto.log
-            sudo chown -R 1883:1883 mosquitto/data mosquitto/log mosquitto/config/passwd
-            sudo chmod 600 mosquitto/config/passwd
 
-            # Jika Mosquitto sudah jalan, muat ulang password file tanpa restart
-            docker kill -s HUP pcb_pkl_mosquitto >/dev/null 2>&1 || true
+            # Pre-create passwd file dan set ownership SEBELUM docker run
+            touch mosquitto/config/passwd
+            chown -R 1883:1883 mosquitto
+
+            # Setup MQTT credentials
+            M_USER=$(grep MQTT_USERNAME .env | cut -d '=' -f2 | tr -d '\r')
+            M_PASS=$(grep MQTT_PASSWORD .env | cut -d '=' -f2 | tr -d '\r')
+
+            if [ -n "$M_USER" ] && [ -n "$M_PASS" ]; then
+              docker run --rm -u root \
+                -v /opt/api-pcb/mosquitto/config:/mosquitto/config \
+                eclipse-mosquitto mosquitto_passwd -b /mosquitto/config/passwd "$M_USER" "$M_PASS"
+            fi
+
+            chmod 0700 mosquitto/log/mosquitto.log
+            [ -f mosquitto/config/passwd ] && chmod 0700 mosquitto/config/passwd
 
             # ==========================================
-            # 3. BACKUP DATABASE (sebelum perubahan apa pun)
+            # 2. BACKUP DATABASE (sebelum perubahan apapun)
             # ==========================================
-            if docker ps --format '{{.Names}}' | grep -qx pcb_pkl_postgres; then
-              DB_USER=$(env_get POSTGRES_USER)
-              DB_NAME=$(env_get POSTGRES_DB)
-              BACKUP_FILE="backups/pre_deploy_$(date +%Y%m%d_%H%M%S).sql.gz"
-              echo "Membuat backup database: $BACKUP_FILE"
-              if ! docker exec -u postgres pcb_pkl_postgres pg_dump \
-                    -U "$DB_USER" -d "$DB_NAME" --no-owner --no-privileges \
-                    | gzip > "$BACKUP_FILE"; then
-                rm -f "$BACKUP_FILE"
-                fail "Backup database gagal, deploy dibatalkan"
-              fi
-              echo "Backup selesai ($(du -h "$BACKUP_FILE" | cut -f1))."
-            else
-              echo "Container postgres belum berjalan, backup dilewati (deploy pertama)."
+            if docker ps --format '{{.Names}}' | grep -q pcb_pkl_postgres; then
+              echo "Membuat backup database sebelum deploy..."
+              docker exec -u postgres pcb_pkl_postgres pg_dump \
+                -U "$(grep POSTGRES_USER .env | cut -d '=' -f2 | tr -d '\r')" \
+                -d "$(grep POSTGRES_DB .env | cut -d '=' -f2 | tr -d '\r')" \
+                --no-owner --no-privileges \
+                | gzip > /opt/api-pcb/backups/pre_deploy_$(date +%Y%m%d_%H%M%S).sql.gz
+              echo "Backup selesai."
             fi
 
             # ==========================================
-            # 4. BUILD IMAGE BARU
+            # 3. BUILD IMAGE BARU
             # ==========================================
             echo "Building Docker images..."
-            $COMPOSE build
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml build
 
-            # Folder logs dan kunci Firebase harus bisa diakses appuser di dalam container
-            APP_UID=$(docker run --rm --entrypoint id "$BACKEND_IMAGE" -u appuser)
-            APP_GID=$(docker run --rm --entrypoint id "$BACKEND_IMAGE" -g appuser)
-            case "$APP_UID$APP_GID" in
-              ''|*[!0-9]*) fail "Gagal membaca uid/gid appuser dari image $BACKEND_IMAGE" ;;
-            esac
-
-            sudo chown -R "$APP_UID:$APP_GID" logs
-            sudo chmod -R u+rwX,g+rwX,o-rwx logs
-            sudo chown "$APP_UID:$APP_GID" firebase-adminsdk.json
-            sudo chmod 400 firebase-adminsdk.json
+            # Pastikan volume logs di host bisa ditulis dan dirotasi oleh appuser di container.
+            APP_UID=$(docker run --rm api-pcb-backend id -u appuser)
+            APP_GID=$(docker run --rm api-pcb-backend id -g appuser)
+            chown -R "$APP_UID:$APP_GID" logs
+            chmod -R u+rwX,g+rwX,o-rwx logs
 
             # ==========================================
-            # 5. START INFRASTRUCTURE (postgres + mosquitto)
+            # 4. START INFRASTRUCTURE (postgres + mosquitto dulu)
             # ==========================================
-            echo "Starting postgres dan mosquitto..."
-            $COMPOSE up -d postgres mosquitto
+            echo "Starting infrastructure services..."
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d postgres mosquitto
 
-            wait_healthy pcb_pkl_postgres 90  || fail "PostgreSQL tidak healthy setelah 90 detik"
-            wait_healthy pcb_pkl_mosquitto 60 || fail "Mosquitto tidak healthy setelah 60 detik"
+            # Tunggu PostgreSQL healthy (max 30 detik)
+            echo "Menunggu PostgreSQL healthy..."
+            for i in $(seq 1 6); do
+              sleep 5
+              if docker ps --format '{{.Names}} {{.Status}}' | grep pcb_pkl_postgres | grep -q healthy; then
+                echo "PostgreSQL healthy!"
+                break
+              fi
+              echo "Menunggu PostgreSQL... ($((i*5))s)"
+              if [ "$i" -eq 6 ]; then
+                echo "ERROR: PostgreSQL tidak healthy setelah 30 detik!"
+                docker logs pcb_pkl_postgres --tail 20
+                exit 1
+              fi
+            done
 
             # ==========================================
-            # 6. DATABASE MIGRATION (sebelum backend baru jalan)
+            # 5. JALANKAN MIGRATION (SEBELUM backend start)
             # ==========================================
             echo "Menjalankan database migration..."
-            $COMPOSE run --rm --no-deps \
-              -v "$APP_DIR/app:/app/app:ro" \
-              -v "$APP_DIR/alembic:/app/alembic:ro" \
-              -v "$APP_DIR/alembic.ini:/app/alembic.ini:ro" \
-              backend alembic upgrade head
+            NETWORK_NAME=$(docker network ls --format '{{.Name}}' | grep iot_network | head -1)
+
+            docker run --rm \
+              --network "$NETWORK_NAME" \
+              -v /opt/api-pcb/app:/app/app \
+              -v /opt/api-pcb/alembic:/app/alembic \
+              -v /opt/api-pcb/alembic.ini:/app/alembic.ini \
+              --env-file /opt/api-pcb/.env \
+              -w /app \
+              api-pcb-backend \
+              alembic upgrade head
+
             echo "Migration selesai."
 
             # ==========================================
-            # 7. START SEMUA SERVICE
+            # 6. START SEMUA SERVICES (backend + mqtt_worker)
             # ==========================================
-            echo "Starting semua service..."
-            $COMPOSE up -d --remove-orphans
+            echo "Starting all services..."
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
-            wait_healthy pcb_pkl_backend 90 || fail "Backend tidak healthy setelah 90 detik"
+            # ==========================================
+            # 7. TUNGGU BACKEND HEALTHY (max 60 detik)
+            # ==========================================
+            echo "Menunggu backend healthy..."
+            BACKEND_HEALTHY=false
+            for i in $(seq 1 12); do
+              sleep 5
+              if docker ps --format '{{.Names}} {{.Status}}' | grep pcb_pkl_backend | grep -q healthy; then
+                echo "Backend healthy!"
+                BACKEND_HEALTHY=true
+                break
+              fi
+              echo "Menunggu backend... ($((i*5))s)"
+            done
 
-            # Worker MQTT tidak punya healthcheck: pastikan tidak crash loop
-            sleep 5
-            WORKER_RUNNING=$(docker inspect -f '{{.State.Running}}' pcb_pkl_mqtt_worker 2>/dev/null || echo false)
-            WORKER_RESTARTING=$(docker inspect -f '{{.State.Restarting}}' pcb_pkl_mqtt_worker 2>/dev/null || echo true)
-            if [ "$WORKER_RUNNING" != "true" ] || [ "$WORKER_RESTARTING" = "true" ]; then
-              fail "mqtt_worker tidak berjalan normal"
+            if [ "$BACKEND_HEALTHY" = false ]; then
+              echo "ERROR: Backend tidak healthy setelah 60 detik!"
+              echo "=== Backend Logs ==="
+              docker logs pcb_pkl_backend --tail 30
+              exit 1
             fi
 
             # ==========================================
-            # 8. VERIFIKASI DARI LUAR CONTAINER (port host 8001)
+            # 8. VERIFIKASI HEALTH CHECK
             # ==========================================
-            echo "Cek endpoint health lewat port host..."
-            curl -fsS --retry 5 --retry-delay 3 --retry-connrefused \
-              http://127.0.0.1:8001/api/health \
-              || fail "Endpoint /api/health tidak merespons 200"
-            echo
-            echo "Deploy SUKSES."
+            HEALTH=$(docker exec pcb_pkl_backend python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:80/api/health').read().decode())" 2>/dev/null || echo "FAILED")
+
+            if echo "$HEALTH" | grep -q "healthy"; then
+              echo "Deploy SUKSES! Health check passed."
+            else
+              echo "ERROR: Health check gagal! Response: $HEALTH"
+              echo "=== Backend Logs ==="
+              docker logs pcb_pkl_backend --tail 30
+              exit 1
+            fi
 
             # ==========================================
             # 9. CLEANUP
             # ==========================================
             docker image prune -f
-            find backups -name 'pre_deploy_*.sql.gz' -mtime +14 -delete
             echo "Deploy selesai!"
