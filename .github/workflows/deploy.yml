@@ -12,19 +12,6 @@ jobs:
       - name: Checkout Kode
         uses: actions/checkout@v4
 
-      - name: Siapkan folder di VPS
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            sudo mkdir -p /opt/api-pcb
-            sudo chown "$(id -un):$(id -gn)" /opt/api-pcb
-            if [ -d /opt/api-pcb/mosquitto/config ]; then
-              sudo chown -R "$(id -un):$(id -gn)" /opt/api-pcb/mosquitto/config
-            fi
-
       # Step 1: Buat file .env secara lokal di runner
       - name: Buat file .env dari secret
         run: printf '%s' "${{ secrets.ENV_FILE }}" | tr -d '\r' > .env.production
